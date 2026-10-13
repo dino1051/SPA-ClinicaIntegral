@@ -1,121 +1,217 @@
-import { useState } from "react";
-import type { Metrica } from "./types";
+import { useMemo, useState } from "react";
+import { PatientDetailsModal } from "./components/patients/PatientiDetailsModal";
+import { PatientFormModal } from "./components/patients/PatientFormModal";
+import type { Paciente } from "./types/pacientes";
+import { pacientesIniciales } from "./data/pacientesData";
 import { CardMetrica } from "./components/MetricCard";
-import "./App.css";
+import { PatientFilters } from "./components/patients/PatientFilters";
+import { PatientTable } from "./components/patients/PatientTable";
+import { PatientCard } from "./components/patients/PatientCard";
+
+//Al usar IA para generar frontend tienes que desestructurar todo
+//Puede que no venga con las librerias que solicitaste
+//Toma su tiempo para crear y debes leerlo durante un rato
 
 function App() {
-  const Metricas = [
-    {
-      id: "1",
-      titulo: "Pacientes",
-      valor: "valor",
-      descripcion: "descripcion",
-      tendencia: "positiva",
-      icono: "icono",
-    },
-    {
-      id: "2",
-      titulo: "Citas Hoy",
-      valor: "valor",
-      descripcion: "descripcion",
-      tendencia: "negativa",
-      icono: "icono",
-    },
-    {
-      id: "3",
-      titulo: "Pendientes",
-      valor: "valor",
-      descripcion: "descripcion",
-      tendencia: "neutra",
-      icono: "icono",
-    },
-    {
-      id: "4",
-      titulo: "Disponibilidad",
-      valor: "valor",
-      descripcion: "descripcion",
-      tendencia: "positiva",
-      icono: "icono",
-    },
-  ];
+  const [pacientes, setPacientes] = useState<Paciente[]>(pacientesIniciales);
+  const [pacienteSeleccionado, setPacienteSeleccionado] =
+    useState<Paciente | null>(null);
 
-  const [metricas, setMetricas] = useState<Metrica[]>([
-    {
-      id: "1",
-      titulo: "Pacientes",
-      valor: 20,
-      descripcion: "descripcion",
-      tendencia: "positiva",
-      icono: "icono",
-    },
-    {
-      id: "2",
-      titulo: "Citas Hoy",
-      valor: "valor",
-      descripcion: "descripcion",
-      tendencia: "negativa",
-      icono: "icono",
-    },
-    {
-      id: "3",
-      titulo: "Pendientes",
-      valor: "valor",
-      descripcion: "descripcion",
-      tendencia: "neutra",
-      icono: "icono",
-    },
-    {
-      id: "4",
-      titulo: "Disponibilidad",
-      valor: "valor",
-      descripcion: "descripcion",
-      tendencia: "positiva",
-      icono: "icono",
-    },
-  ]);
+  const [modalDetallesAbierto, setModalDetallesAbierto] = useState(false);
+  const [modalFormularioAbierto, setModalFormularioAbierto] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
+  const [estado, setEstado] = useState("todos");
+  const [especialidad, setEspecialidad] = useState("todas");
 
-  const [pacientes, setPacientes] = useState(128);
+  // Obtener las especialidades que existen en los datos.
+  const especialidades = useMemo(() => {
+    return [
+      ...new Set(
+        pacientes
+          .map((paciente) => paciente.especialidadAsignada)
+          .filter(Boolean),
+      ),
+    ].sort((a, b) => a.localeCompare(b, "es"));
+  }, [pacientes]);
+  <div className="mb-6 flex justify-end">
+    <button
+      type="button"
+      onClick={() => {
+        setPacienteSeleccionado(null);
+        setModalFormularioAbierto(true);
+      }}
+      className="flex items-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+    >
+      <span className="material-symbols-outlined">person_add</span>
+      Nuevo paciente
+    </button>
+  </div>;
+  // Aplicar los filtros.
+  const pacientesFiltrados = useMemo(() => {
+    const termino = busqueda.trim().toLowerCase();
 
-  const incrementarPacientes = () => setPacientes((prev) => prev + 1);
+    return pacientes.filter((paciente) => {
+      const nombreCompleto =
+        `${paciente.nombre} ${paciente.apellido}`.toLowerCase();
+
+      const coincideBusqueda =
+        nombreCompleto.includes(termino) ||
+        paciente.email.toLowerCase().includes(termino) ||
+        paciente.telefono.toLowerCase().includes(termino) ||
+        paciente.id.toLowerCase().includes(termino);
+
+      const coincideEstado = estado === "todos" || paciente.estado === estado;
+
+      const coincideEspecialidad =
+        especialidad === "todas" ||
+        paciente.especialidadAsignada === especialidad;
+
+      return coincideBusqueda && coincideEstado && coincideEspecialidad;
+    });
+  }, [pacientes, busqueda, estado, especialidad]);
+
+  function limpiarFiltros() {
+    setBusqueda("");
+    setEstado("todos");
+    setEspecialidad("todas");
+  }
+
+  function verPaciente(paciente: Paciente) {
+    setPacienteSeleccionado(paciente);
+    setModalDetallesAbierto(true);
+  }
+
+  function editarPaciente(paciente: Paciente) {
+    setPacienteSeleccionado(paciente);
+    setModalDetallesAbierto(false);
+    setModalFormularioAbierto(true);
+  }
+  function guardarPaciente(pacienteActualizado: Paciente) {
+    setPacientes((actuales) => {
+      const existe = actuales.some((p) => p.id === pacienteActualizado.id);
+
+      if (existe) {
+        return actuales.map((p) =>
+          p.id === pacienteActualizado.id ? pacienteActualizado : p,
+        );
+      }
+
+      return [...actuales, pacienteActualizado];
+    });
+
+    setPacienteSeleccionado(null);
+    setModalFormularioAbierto(false);
+  }
+  function eliminarPaciente(paciente: Paciente) {
+    const confirmar = window.confirm(
+      `¿Seguro que deseas eliminar a ${paciente.nombre} ${paciente.apellido}?`,
+    );
+
+    if (!confirmar) return;
+
+    setPacientes((actuales) => actuales.filter((p) => p.id !== paciente.id));
+
+    // Si el paciente eliminado estaba seleccionado, limpiamos la selección.
+    setPacienteSeleccionado((actual) =>
+      actual?.id === paciente.id ? null : actual,
+    );
+  }
+
+  const totalPacientes = pacientes.length;
+
+  const pacientesActivos = pacientes.filter(
+    (paciente) => paciente.estado === "activo",
+  ).length;
+
+  const pacientesInactivos = pacientes.filter(
+    (paciente) => paciente.estado === "inactivo",
+  ).length;
+
+  const pacientesEnEspera = pacientes.filter(
+    (paciente) => paciente.estado === "en_espera",
+  ).length;
+  {
+    modalDetallesAbierto && (
+      <PatientDetailsModal
+        paciente={pacienteSeleccionado}
+        onCerrar={() => setModalDetallesAbierto(false)}
+        onEditar={editarPaciente}
+      />
+    );
+  }
+
+  {
+    modalFormularioAbierto && (
+      <PatientFormModal
+        paciente={pacienteSeleccionado}
+        especialidades={especialidades}
+        onCerrar={() => {
+          setModalFormularioAbierto(false);
+          setPacienteSeleccionado(null);
+        }}
+        onGuardar={guardarPaciente}
+      />
+    );
+  }
 
   return (
-    <div>
-      <div>
-        {metricas.map((p) => (
-          <CardMetrica
-            id={p.id}
-            titulo={p.titulo}
-            valor={p.valor}
-            descripcion={p.descripcion}
-            tendencia={p.tendencia}
-            icono={p.icono}
-          ></CardMetrica>
-        ))}
-      </div>
+    <main className="min-h-screen bg-surface pb-24 pt-20">
+      <PatientFilters
+        busqueda={busqueda}
+        estado={estado}
+        especialidad={especialidad}
+        especialidades={especialidades}
+        onBusquedaChange={setBusqueda}
+        onEstadoChange={setEstado}
+        onEspecialidadChange={setEspecialidad}
+        onLimpiar={limpiarFiltros}
+      />
 
-      <div>
-        <h1>USO DE ESTADOS BASICOS</h1>
-        <button
-          className="px-4 py-2 bg-indigo-800 text-white"
-          onClick={incrementarPacientes}
-        >
-          AGREGAR PACIENTE
-        </button>
+      <PatientTable
+        pacientes={pacientesFiltrados}
+        onVerPaciente={verPaciente}
+        onEditarPaciente={editarPaciente}
+        onEliminarPaciente={eliminarPaciente}
+        onRestablecerFiltros={limpiarFiltros}
+      />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <CardMetrica
+          id="total"
+          titulo="Total de pacientes"
+          valor={totalPacientes}
+          descripcion="Pacientes registrados"
+          tendencia="positiva"
+          icono="groups"
+        />
 
-        <div className="grid grid-cols-2 bg-amber-900 gap-5">
-          {metricas.map((p) => (
-            <CardMetrica
-              id={p.id}
-              titulo={p.titulo}
-              valor={p.valor}
-              descripcion={p.descripcion}
-              tendencia={p.tendencia}
-              icono={p.icono}
-            ></CardMetrica>
-          ))}
-        </div>
+        <CardMetrica
+          id="activos"
+          titulo="Pacientes activos"
+          valor={pacientesActivos}
+          descripcion="Pacientes con estado activo"
+          tendencia="positiva"
+          icono="person_check"
+        />
+
+        <CardMetrica
+          id="inactivos"
+          titulo="Pacientes inactivos"
+          valor={pacientesInactivos}
+          descripcion="Pacientes con estado inactivo"
+          tendencia="negativa"
+          icono="person_off"
+        />
+
+        <CardMetrica
+          id="espera"
+          titulo="Pacientes en espera"
+          valor={pacientesEnEspera}
+          descripcion="Pacientes pendientes de atención"
+          tendencia="neutra"
+          icono="hourglass_empty"
+        />
       </div>
-    </div>
+    </main>
   );
 }
 

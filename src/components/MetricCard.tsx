@@ -14,8 +14,8 @@ export function CardMetrica({
   icono,
 }: Metrica) {
   return (
-    <div className="p-4 border rounded-lg bg-amber-100">
-      <h3 className="font-bold">
+    <div className="rounded-2xl border border-white/10 bg-[#202331] p-5 shadow-lg">
+      <h3 className="text-sm font-medium text-gray-300">
         {id} : {titulo}{" "}
       </h3>
       <p>{valor} </p>
