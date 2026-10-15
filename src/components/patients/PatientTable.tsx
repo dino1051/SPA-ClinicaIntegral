@@ -1,5 +1,4 @@
 import type { Paciente } from "../../types/pacientes";
-import { PatientCard } from "./PatientCard";
 
 interface PatientTableProps {
   pacientes: Paciente[];
@@ -78,7 +77,9 @@ function PatientActions({
         aria-label={`Ver expediente de ${paciente.nombre} ${paciente.apellido}`}
         className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${estiloBoton}`}
       >
-        <span className="material-symbols-outlined text-[18px]">Ver</span>
+        <span className="material-symbols-outlined text-[18px]">
+          visibility
+        </span>
       </button>
 
       <button
@@ -169,43 +170,7 @@ export function PatientTable({
           </div>
         ) : (
           <>
-            {/* Tabla para escritorio y tablet */}
-            <div className="grid grid-cols-1 gap-4 md:hidden md:block">
-              {pacientes.length > 0 ? (
-                pacientes.map((paciente) => (
-                  <PatientCard
-                    key={paciente.id}
-                    paciente={paciente}
-                    onVerPaciente={onVerPaciente}
-                    onEditarPaciente={onEditarPaciente}
-                    onEliminarPaciente={onEliminarPaciente}
-                  />
-                ))
-              ) : (
-                <div className="rounded-2xl border border-white/10 p-8 text-center">
-                  <span className="material-symbols-outlined text-4xl text-gray-400">
-                    person_search
-                  </span>
-                  <p className="mt-3 font-medium text-white">
-                    No se encontraron pacientes
-                  </p>
-                  <p className="mt-1 text-sm text-gray-400">
-                    Prueba cambiando los filtros de búsqueda.
-                  </p>
-
-                  {onRestablecerFiltros && (
-                    <button
-                      type="button"
-                      onClick={onRestablecerFiltros}
-                      className="mt-4 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white"
-                    >
-                      Limpiar filtros
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="hidden overflow-x-auto md:block">
+            <div className="hidden w-full overflow-x-auto md:block">
               <table className="w-full text-left text-body-sm text-on-surface">
                 <thead className="bg-surface-container-low/60 text-label-sm uppercase text-on-surface-variant">
                   <tr>
@@ -294,7 +259,7 @@ export function PatientTable({
             </div>
 
             {/* Tarjetas para móvil */}
-            <div className="flex flex-col gap-space-sm p-space-sm md:hidden">
+            <div className="grid grid-cols-1 gap-4 md:hidden">
               {pacientes.map((paciente) => (
                 <article
                   key={paciente.id}
