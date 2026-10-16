@@ -1,6 +1,12 @@
-import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
-import type { Paciente, EstadoPaciente } from "../../types/pacientes";
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+import type { Paciente } from "../../types/pacientes";
+import {
+  pacienteSchema,
+  type PacienteFormulario,
+} from "../../schemas/paciente.schema";
 
 interface PatientFormModalProps {
   paciente: Paciente | null;
@@ -9,53 +15,52 @@ interface PatientFormModalProps {
   onGuardar: (paciente: Paciente) => void;
 }
 
-type FormularioPaciente = Omit<Paciente, "id">;
-
-const formularioVacio: FormularioPaciente = {
-  nombre: "",
-  apellido: "",
-  email: "",
-  telefono: "",
-  especialidadAsignada: "",
-  ultimaCita: "",
-  estado: "activo",
-};
-
 export function PatientFormModal({
   paciente,
   especialidades,
   onCerrar,
   onGuardar,
 }: PatientFormModalProps) {
-  const [formulario, setFormulario] =
-    useState<FormularioPaciente>(formularioVacio);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<PacienteFormulario>({
+    resolver: zodResolver(pacienteSchema),
+    defaultValues: {
+      nombre: "",
+      apellido: "",
+      email: "",
+      telefono: "",
+      especialidadAsignada: "",
+      ultimaCita: "",
+      estado: "activo",
+    },
+  });
 
+  // Carga los datos al editar o limpia el formulario al crear.
   useEffect(() => {
-    if (paciente) {
-      const { id, ...datos } = paciente;
-      setFormulario(datos);
-    } else {
-      setFormulario(formularioVacio);
-    }
-  }, [paciente]);
+    reset({
+      nombre: paciente?.nombre ?? "",
+      apellido: paciente?.apellido ?? "",
+      email: paciente?.email ?? "",
+      telefono: paciente?.telefono ?? "",
+      especialidadAsignada: paciente?.especialidadAsignada ?? "",
+      ultimaCita: paciente?.ultimaCita ?? "",
+      estado: paciente?.estado ?? "activo",
+    });
+  }, [paciente, reset]);
 
-  function actualizarCampo(campo: keyof FormularioPaciente, valor: string) {
-    setFormulario((actual) => ({
-      ...actual,
-      [campo]: valor,
-    }));
-  }
-
-  function manejarEnvio(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const datos: Paciente = {
+  // Esta función solo recibe datos que pasaron la validación.
+  const manejarEnvio = (datosFormulario: PacienteFormulario) => {
+    const datosPaciente: Paciente = {
       id: paciente?.id ?? crypto.randomUUID(),
-      ...formulario,
+      ...datosFormulario,
     };
 
-    onGuardar(datos);
-  }
+    onGuardar(datosPaciente);
+  };
 
   return (
     <div
@@ -77,6 +82,7 @@ export function PatientFormModal({
             >
               {paciente ? "Editar paciente" : "Nuevo paciente"}
             </h2>
+
             <p className="mt-1 text-sm text-gray-400">
               Completa la información del paciente.
             </p>
@@ -92,78 +98,101 @@ export function PatientFormModal({
           </button>
         </div>
 
-        <form onSubmit={manejarEnvio}>
+        <form onSubmit={handleSubmit(manejarEnvio)} noValidate>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* Nombre */}
             <label className="space-y-1 text-sm text-gray-300">
-              Nombre
+              <span className="block">Nombre</span>
               <input
-                required
-                value={formulario.nombre}
-                onChange={(e) => actualizarCampo("nombre", e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white outline-none focus:border-primary"
-                placeholder="Nombre"
+                {...register("nombre")}
+                placeholder="Nombre del paciente"
+                aria-invalid={!!errors.nombre}
+                className="w-full rounded-xl border border-white/10 bg-surface-2 px-3 py-2 text-white"
               />
+              {errors.nombre && (
+                <p role="alert" className="text-sm text-red-400">
+                  {errors.nombre.message}
+                </p>
+              )}
             </label>
 
+            {/* Apellido */}
             <label className="space-y-1 text-sm text-gray-300">
-              Apellido
+              <span className="block">Apellido</span>
               <input
-                required
-                value={formulario.apellido}
-                onChange={(e) => actualizarCampo("apellido", e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white outline-none focus:border-primary"
-                placeholder="Apellido"
+                {...register("apellido")}
+                placeholder="Apellido del paciente"
+                aria-invalid={!!errors.apellido}
+                className="w-full rounded-xl border border-white/10 bg-surface-2 px-3 py-2 text-white"
               />
+              {errors.apellido && (
+                <p role="alert" className="text-sm text-red-400">
+                  {errors.apellido.message}
+                </p>
+              )}
             </label>
 
+            {/* Correo */}
             <label className="space-y-1 text-sm text-gray-300 sm:col-span-2">
-              Correo electrónico
+              <span className="block">Correo electrónico</span>
               <input
-                required
                 type="email"
-                value={formulario.email}
-                onChange={(e) => actualizarCampo("email", e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white outline-none focus:border-primary"
-                placeholder="paciente@correo.com"
+                {...register("email")}
+                placeholder="correo@ejemplo.com"
+                aria-invalid={!!errors.email}
+                className="w-full rounded-xl border border-white/10 bg-surface-2 px-3 py-2 text-white"
               />
+              {errors.email && (
+                <p role="alert" className="text-sm text-red-400">
+                  {errors.email.message}
+                </p>
+              )}
             </label>
 
+            {/* Teléfono */}
             <label className="space-y-1 text-sm text-gray-300">
-              Teléfono
+              <span className="block">Teléfono</span>
               <input
-                required
                 type="tel"
-                value={formulario.telefono}
-                onChange={(e) => actualizarCampo("telefono", e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white outline-none focus:border-primary"
-                placeholder="Número de teléfono"
+                {...register("telefono")}
+                placeholder="Teléfono del paciente"
+                aria-invalid={!!errors.telefono}
+                className="w-full rounded-xl border border-white/10 bg-surface-2 px-3 py-2 text-white"
               />
+              {errors.telefono && (
+                <p role="alert" className="text-sm text-red-400">
+                  {errors.telefono.message}
+                </p>
+              )}
             </label>
 
+            {/* Estado */}
             <label className="space-y-1 text-sm text-gray-300">
-              Estado
+              <span className="block">Estado</span>
               <select
-                value={formulario.estado}
-                onChange={(e) =>
-                  actualizarCampo("estado", e.target.value as EstadoPaciente)
-                }
-                className="w-full rounded-xl border border-white/10 bg-surface px-3 py-2.5 text-white outline-none focus:border-primary"
+                {...register("estado")}
+                aria-invalid={!!errors.estado}
+                className="w-full rounded-xl border border-white/10 bg-surface-2 px-3 py-2 text-white"
               >
                 <option value="activo">Activo</option>
                 <option value="inactivo">Inactivo</option>
                 <option value="en_espera">En espera</option>
               </select>
+              {errors.estado && (
+                <p role="alert" className="text-sm text-red-400">
+                  {errors.estado.message}
+                </p>
+              )}
             </label>
 
+            {/* Especialidad */}
             <label className="space-y-1 text-sm text-gray-300 sm:col-span-2">
-              Especialidad asignada
+              <span className="block">Especialidad asignada</span>
               <input
                 list="especialidades-pacientes"
-                value={formulario.especialidadAsignada}
-                onChange={(e) =>
-                  actualizarCampo("especialidadAsignada", e.target.value)
-                }
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white outline-none focus:border-primary"
+                {...register("especialidadAsignada")}
+                aria-invalid={!!errors.especialidadAsignada}
+                className="w-full rounded-xl border border-white/10 bg-surface-2 px-3 py-2.5 text-white"
                 placeholder="Selecciona o escribe una especialidad"
               />
               <datalist id="especialidades-pacientes">
@@ -171,16 +200,27 @@ export function PatientFormModal({
                   <option key={especialidad} value={especialidad} />
                 ))}
               </datalist>
+              {errors.especialidadAsignada && (
+                <p role="alert" className="text-sm text-red-400">
+                  {errors.especialidadAsignada.message}
+                </p>
+              )}
             </label>
 
+            {/* Última cita */}
             <label className="space-y-1 text-sm text-gray-300 sm:col-span-2">
-              Última cita
+              <span className="block">Última cita</span>
               <input
                 type="date"
-                value={formulario.ultimaCita}
-                onChange={(e) => actualizarCampo("ultimaCita", e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white outline-none focus:border-primary"
+                {...register("ultimaCita")}
+                aria-invalid={!!errors.ultimaCita}
+                className="w-full rounded-xl border border-white/10 bg-surface-2 px-3 py-2.5 text-white"
               />
+              {errors.ultimaCita && (
+                <p role="alert" className="text-sm text-red-400">
+                  {errors.ultimaCita.message}
+                </p>
+              )}
             </label>
           </div>
 
@@ -195,7 +235,8 @@ export function PatientFormModal({
 
             <button
               type="submit"
-              className="rounded-xl bg-primary px-5 py-2 text-sm font-semibold text-white hover:opacity-90"
+              disabled={isSubmitting}
+              className="rounded-xl bg-primary px-5 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
             >
               {paciente ? "Guardar cambios" : "Crear paciente"}
             </button>
