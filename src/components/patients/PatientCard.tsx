@@ -1,4 +1,5 @@
 import type { Paciente } from "../../types/pacientes";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 
 interface PatientCardProps {
   paciente: Paciente;
@@ -93,36 +94,35 @@ export function PatientCard({
       </div>
 
       {/* Acciones */}
-      <div className="mt-5 flex gap-2 border-t border-white/10 pt-4">
+
+      <div className="mt-5 grid grid-cols-[minmax(0,1fr)_44px_44px] items-center gap-2 border-t border-white/10 pt-4">
         <button
           type="button"
           onClick={() => onVerPaciente(paciente)}
-          title="Ver detalles"
           aria-label={`Ver detalles de ${paciente.nombre}`}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm text-gray-200 transition-colors hover:bg-white/10"
+          className="inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-xl border border-white/10 px-3 text-sm font-medium text-gray-200 transition-colors hover:bg-white/10"
         >
-          <span className="material-symbols-outlined text-lg">visibility</span>
-          Ver
+          <Eye size={18} aria-hidden="true" />
         </button>
 
         <button
           type="button"
           onClick={() => onEditarPaciente(paciente)}
-          title="Editar paciente"
           aria-label={`Editar a ${paciente.nombre}`}
-          className="flex items-center justify-center rounded-xl border border-white/10 px-3 py-2 text-gray-200 transition-colors hover:bg-white/10"
+          title="Editar paciente"
+          className="inline-flex size-11 items-center justify-center rounded-xl border border-white/10 text-gray-200 transition-colors hover:bg-white/10"
         >
-          <span className="material-symbols-outlined text-lg">edit</span>
+          <Pencil size={18} aria-hidden="true" />
         </button>
 
         <button
           type="button"
           onClick={() => onEliminarPaciente(paciente)}
-          title="Eliminar paciente"
           aria-label={`Eliminar a ${paciente.nombre}`}
-          className="flex items-center justify-center rounded-xl border border-red-500/20 px-3 py-2 text-red-400 transition-colors hover:bg-red-500/10"
+          title="Eliminar paciente"
+          className="inline-flex size-11 items-center justify-center rounded-xl border border-red-500/20 text-red-400 transition-colors hover:bg-red-500/10"
         >
-          <span className="material-symbols-outlined text-lg">delete</span>
+          <Trash2 size={18} aria-hidden="true" />
         </button>
       </div>
     </article>
