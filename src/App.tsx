@@ -6,8 +6,7 @@ import { pacientesIniciales } from "./data/pacientesData";
 import { CardMetrica } from "./components/MetricCard";
 import { PatientFilters } from "./components/patients/PatientFilters";
 import { PatientTable } from "./components/patients/PatientTable";
-import { PatientCard } from "./components/patients/PatientCard";
-
+import { FormularioCita } from "./components/citas/FormularioCita";
 //Al usar IA para generar frontend tienes que desestructurar todo
 //Puede que no venga con las librerias que solicitaste
 //Toma su tiempo para crear y debes leerlo durante un rato
@@ -33,19 +32,6 @@ function App() {
       ),
     ].sort((a, b) => a.localeCompare(b, "es"));
   }, [pacientes]);
-  <div className="mb-6 flex justify-end">
-    <button
-      type="button"
-      onClick={() => {
-        setPacienteSeleccionado(null);
-        setModalFormularioAbierto(true);
-      }}
-      className="flex items-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-    >
-      <span className="material-symbols-outlined">person_add</span>
-      Nuevo paciente
-    </button>
-  </div>;
   // Aplicar los filtros.
   const pacientesFiltrados = useMemo(() => {
     const termino = busqueda.trim().toLowerCase();
@@ -155,7 +141,32 @@ function App() {
   }
 
   return (
-    <main className="min-h-screen bg-surface pb-24 pt-20">
+    <main className="min-h-screen bg-surface px-4 pb-24 pt-20 sm:px-6 lg:px-8">
+      {/* Encabezado y botón para crear pacientes */}
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">
+            Gestión de pacientes
+          </h1>
+          <p className="mt-1 text-sm text-gray-400">
+            Administra y consulta la información de tus pacientes.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setPacienteSeleccionado(null);
+            setModalFormularioAbierto(true);
+          }}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+        >
+          <span className="material-symbols-outlined">person_add</span>
+          Nuevo paciente
+        </button>
+      </div>
+
+      {/* Filtros */}
       <PatientFilters
         busqueda={busqueda}
         estado={estado}
@@ -167,6 +178,7 @@ function App() {
         onLimpiar={limpiarFiltros}
       />
 
+      {/* Tabla de pacientes */}
       <PatientTable
         pacientes={pacientesFiltrados}
         onVerPaciente={verPaciente}
@@ -174,7 +186,9 @@ function App() {
         onEliminarPaciente={eliminarPaciente}
         onRestablecerFiltros={limpiarFiltros}
       />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+
+      {/* Métricas */}
+      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-8">
         <CardMetrica
           id="total"
           titulo="Total de pacientes"
@@ -211,6 +225,30 @@ function App() {
           icono="hourglass_empty"
         />
       </div>
+
+      {/* Modal para consultar un paciente */}
+      {modalDetallesAbierto && pacienteSeleccionado && (
+        <PatientDetailsModal
+          paciente={pacienteSeleccionado}
+          onCerrar={() => setModalDetallesAbierto(false)}
+          onEditar={editarPaciente}
+        />
+      )}
+
+      {/* Modal para crear o editar */}
+      {modalFormularioAbierto && (
+        <PatientFormModal
+          paciente={pacienteSeleccionado}
+          especialidades={especialidades}
+          onCerrar={() => {
+            setModalFormularioAbierto(false);
+            setPacienteSeleccionado(null);
+          }}
+          onGuardar={guardarPaciente}
+        />
+      )}
+      <div></div>
+      <FormularioCita />
     </main>
   );
 }
