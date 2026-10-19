@@ -1,4 +1,6 @@
 import type { Paciente } from "../../types/pacientes";
+import { Link } from "react-router-dom";
+import { Eye } from "lucide-react";
 
 interface PatientTableProps {
   pacientes: Paciente[];
@@ -70,17 +72,13 @@ function PatientActions({
 
   return (
     <div className="inline-flex items-center justify-end gap-1">
-      <button
-        type="button"
-        onClick={() => onVerPaciente(paciente)}
-        title="Ver expediente"
-        aria-label={`Ver expediente de ${paciente.nombre} ${paciente.apellido}`}
-        className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${estiloBoton}`}
+      <Link
+        to={`/pacientes/${paciente.id}`}
+        className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-blue-600 hover:bg-blue-50"
       >
-        <span className="material-symbols-outlined text-[18px]">
-          visibility
-        </span>
-      </button>
+        <Eye size={18} />
+        Ver detalles
+      </Link>
 
       <button
         type="button"

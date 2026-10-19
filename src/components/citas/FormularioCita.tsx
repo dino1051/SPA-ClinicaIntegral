@@ -4,7 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 import { citaSchema, type CitaFormData } from "../../schemas/citaSchema";
 import { useMedicos } from "../../hooks/useMedicos";
-import type { Medico } from "../../hooks/useMedicos";
 
 interface CitaConfirmada extends CitaFormData {
   medicoNombre: string;
