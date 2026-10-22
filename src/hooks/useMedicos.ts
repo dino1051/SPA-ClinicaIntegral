@@ -1,46 +1,46 @@
 import { useEffect, useState } from "react";
+import { api } from "../lib/axios";
 
 export interface Medico {
-  id: string;
+  id_doctor: number;
   nombre: string;
+  apellido: string;
   especialidad: string;
+  activo: boolean;
 }
-
-const medicosSimulados: Medico[] = [
-  {
-    id: "med-1",
-    nombre: "Laura Martínez",
-    especialidad: "Medicina general",
-  },
-  {
-    id: "med-2",
-    nombre: "Carlos Hernández",
-    especialidad: "Cardiología",
-  },
-  {
-    id: "med-3",
-    nombre: "Sofía Ramírez",
-    especialidad: "Pediatría",
-  },
-  {
-    id: "med-4",
-    nombre: "Andrés Torres",
-    especialidad: "Dermatología",
-  },
-];
 
 export function useMedicos() {
   const [medicos, setMedicos] = useState<Medico[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setMedicos(medicosSimulados);
-      setCargando(false);
-    }, 800);
+    let activo = true;
 
-    return () => clearTimeout(timer);
+    async function cargarMedicos() {
+      try {
+        const respuesta = await api.get<Medico[]>("/doctores");
+
+        if (activo) {
+          setMedicos(respuesta.data.filter((medico) => medico.activo));
+        }
+      } catch {
+        if (activo) {
+          setError("No fue posible cargar los médicos.");
+        }
+      } finally {
+        if (activo) {
+          setCargando(false);
+        }
+      }
+    }
+
+    void cargarMedicos();
+
+    return () => {
+      activo = false;
+    };
   }, []);
 
-  return { medicos, cargando };
+  return { medicos, cargando, error };
 }

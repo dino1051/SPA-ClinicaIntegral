@@ -1,12 +1,23 @@
 import { api } from "../lib/axios";
+import type { Cita, CrearCitaPayload, EstadoCita } from "../types/citas";
 
-export type EstadoCita = "PROGRAMADA" | "COMPLETADA" | "CANCELADA";
-
-export interface ActualizarEstadoCitaDTO {
-  estado: EstadoCita;
+interface RespuestaPaginada {
+  data: Cita[];
+  total?: number;
 }
 
-export const updateEstado = (id: number, estado: EstadoCita) =>
-  api.patch<void>(`/citas/${id}/estado`, {
-    estado,
+export async function obtenerCitas(estado?: EstadoCita): Promise<Cita[]> {
+  const respuesta = await api.get<Cita[] | RespuestaPaginada>("/citas", {
+    params: estado ? { estado } : undefined,
   });
+
+  const datos = respuesta.data;
+
+  return Array.isArray(datos) ? datos : datos.data;
+}
+
+export async function crearCita(datos: CrearCitaPayload): Promise<Cita> {
+  const respuesta = await api.post<Cita>("/citas", datos);
+
+  return respuesta.data;
+}

@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useOptimistic, useState, useTransition } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, UserRound } from "lucide-react";
+import { ArrowLeft, UserRound, Power } from "lucide-react";
 import { api } from "../lib/axios";
 import type { Paciente } from "../types/pacientes";
+import toast from "react-hot-toast";
 
 export function PacienteDetallePage() {
   const { id } = useParams<{ id: string }>();
@@ -10,6 +11,16 @@ export function PacienteDetallePage() {
   const [paciente, setPaciente] = useState<Paciente | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(false);
+  const [errorActualizacion, setErrorActualizacion] = useState("");
+
+  const [isPending, startTransition] = useTransition();
+
+  // Estado optimista: modifica visualmente el estado del paciente.
+  const [pacienteOptimista, setPacienteOptimista] = useOptimistic(
+    paciente,
+    (estadoActual, nuevoActivo: boolean) =>
+      estadoActual ? { ...estadoActual, activo: nuevoActivo } : estadoActual,
+  );
 
   useEffect(() => {
     if (!id) {
@@ -51,6 +62,43 @@ export function PacienteDetallePage() {
     };
   }, [id]);
 
+  // Cambia el estado activo/inactivo usando PATCH.
+
+  const cambiarEstado = () => {
+    if (!paciente || !id || isPending) return;
+
+    const nuevoActivo = !paciente.activo;
+
+    setErrorActualizacion("");
+
+    startTransition(async () => {
+      // Actualización visual inmediata.
+      setPacienteOptimista(nuevoActivo);
+
+      try {
+        const res = await api.patch<Paciente>(`/pacientes/Byid/${id}`, {
+          activo: nuevoActivo,
+        });
+
+        // Guardamos la respuesta confirmada.
+        setPaciente(res.data);
+
+        // Notificamos que el servidor confirmó el cambio.
+        toast.success(
+          nuevoActivo
+            ? "Paciente activado correctamente"
+            : "Paciente desactivado correctamente",
+        );
+      } catch (error) {
+        console.error("Error al actualizar el paciente:", error);
+
+        setErrorActualizacion("");
+
+        toast.error("No se pudo actualizar el paciente");
+      }
+    });
+  };
+
   if (cargando) {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
@@ -59,7 +107,7 @@ export function PacienteDetallePage() {
     );
   }
 
-  if (error || !paciente) {
+  if (error || !pacienteOptimista) {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
         <h2 className="text-xl font-bold">Paciente no encontrado</h2>
@@ -78,6 +126,9 @@ export function PacienteDetallePage() {
       </section>
     );
   }
+
+  const pacienteActual = pacienteOptimista;
+
   return (
     <section className="space-y-6">
       <Link
@@ -89,34 +140,66 @@ export function PacienteDetallePage() {
       </Link>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-        <div className="flex items-center gap-4">
-          <div className="rounded-full bg-blue-50 p-4 text-blue-600">
-            <UserRound size={30} />
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="rounded-full bg-blue-50 p-4 text-blue-600">
+              <UserRound size={30} />
+            </div>
+
+            <div>
+              <h2 className="text-2xl font-bold">
+                {pacienteActual.nombre} {pacienteActual.apellido}
+              </h2>
+
+              <p className="text-sm text-slate-500">
+                ID: {pacienteActual.id_paciente}
+              </p>
+            </div>
           </div>
 
-          <div>
-            <h2 className="text-2xl font-bold">
-              {paciente.nombre} {paciente.apellido}
-            </h2>
+          <button
+            type="button"
+            onClick={cambiarEstado}
+            disabled={isPending}
+            className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+              pacienteActual.activo
+                ? "bg-red-50 text-red-700 hover:bg-red-100"
+                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+            }`}
+          >
+            <Power size={18} />
 
-            <p className="text-sm text-slate-500">ID: {paciente.id_paciente}</p>
-          </div>
+            {isPending
+              ? "Actualizando..."
+              : pacienteActual.activo
+                ? "Desactivar paciente"
+                : "Activar paciente"}
+          </button>
         </div>
+
+        {errorActualizacion && (
+          <p
+            role="alert"
+            className="mt-5 rounded-lg bg-red-50 p-3 text-sm text-red-700"
+          >
+            {errorActualizacion}
+          </p>
+        )}
 
         <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
           <div>
             <p className="text-sm text-slate-500">Correo electrónico</p>
-            <p className="mt-1 font-medium">{paciente.email}</p>
+            <p className="mt-1 font-medium">{pacienteActual.email}</p>
           </div>
 
           <div>
             <p className="text-sm text-slate-500">Fecha de nacimiento</p>
-            <p className="mt-1 font-medium">{paciente.fechaNacimiento}</p>
+            <p className="mt-1 font-medium">{pacienteActual.fechaNacimiento}</p>
           </div>
 
           <div>
             <p className="text-sm text-slate-500">Teléfono</p>
-            <p className="mt-1 font-medium">{paciente.telefono}</p>
+            <p className="mt-1 font-medium">{pacienteActual.telefono}</p>
           </div>
 
           <div>
@@ -124,18 +207,18 @@ export function PacienteDetallePage() {
 
             <span
               className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${
-                paciente.activo
+                pacienteActual.activo
                   ? "bg-secondary-fixed/40 text-secondary"
                   : "bg-surface-container text-outline"
               }`}
             >
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
-                  paciente.activo ? "bg-secondary" : "bg-outline"
+                  pacienteActual.activo ? "bg-secondary" : "bg-outline"
                 }`}
               />
 
-              {paciente.activo ? "Activo" : "Inactivo"}
+              {pacienteActual.activo ? "Activo" : "Inactivo"}
             </span>
           </div>
         </div>

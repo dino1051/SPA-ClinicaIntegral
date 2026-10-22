@@ -1,40 +1,73 @@
 import { Link, useNavigate } from "react-router-dom";
 import { UserPlus } from "lucide-react";
-import { api } from "../lib/axios";
-import { useMemo, useState, useEffect } from "react";
+import {
+  useMemo,
+  useState,
+  useEffect,
+  useOptimistic,
+  startTransition,
+} from "react";
 import { PatientFormModal } from "../components/patients/PatientFormModal";
 import type { Paciente } from "../types/pacientes";
 import { CardMetrica } from "../components/MetricCard";
 import { PatientFilters } from "../components/patients/PatientFilters";
 import { PatientTable } from "../components/patients/PatientTable";
-import { PacienteDetallePage } from "./PacienteDetallePage";
-import { create, update } from "../types/pacientes";
 import type { PacienteFormulario } from "../schemas/paciente.schema";
 import toast from "react-hot-toast";
 import { extraerMensajeError } from "../lib/errorHandler";
+import { usePacientesStore } from "../stores/usePacientesStore";
+import { obtenerMetricas } from "../services/dashboard";
 
 export function PacientesPage() {
   const [pacienteSeleccionado, setPacienteSeleccionado] =
     useState<Paciente | null>(null);
+  const pacientes = usePacientesStore((state) => state.pacientes);
+  const cargando = usePacientesStore((state) => state.cargando);
+  const error = usePacientesStore((state) => state.error);
+  const totalPacientes = usePacientesStore((state) => state.totalPacientes);
+  const cargarPacientes = usePacientesStore((state) => state.cargarPacientes);
 
+  const guardarPacienteEnStore = usePacientesStore(
+    (state) => state.guardarPaciente,
+  );
+
+  const eliminarPacienteDelStore = usePacientesStore(
+    (state) => state.eliminarPaciente,
+  );
   const [modalFormularioAbierto, setModalFormularioAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [estado, setEstado] = useState("todos");
-  const [pacientes, setPacientes] = useState<Paciente[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState(false);
-  const [totalPacientes, setTotalPacientes] = useState<number | null>(null);
   const [totalMedicos, setTotalMedicos] = useState<number | null>(null);
   const [citasProgramadas, setCitasProgramadas] = useState<number | null>(null);
   const [completadasHoy, setCompletadasHoy] = useState<number | null>(null);
-  // Obtener las especialidades que existen en los datos.
+  const [pacientesOptimistas, actualizarOptimista] = useOptimistic(
+    pacientes,
+    (
+      listaActual: Paciente[],
+      accion: {
+        tipo: "agregar" | "actualizar";
+        paciente: Paciente;
+      },
+    ) => {
+      if (accion.tipo === "agregar") {
+        return [accion.paciente, ...listaActual];
+      }
+
+      return listaActual.map((paciente) =>
+        paciente.id_paciente === accion.paciente.id_paciente
+          ? accion.paciente
+          : paciente,
+      );
+    },
+  );
+
   const navigate = useNavigate();
 
   // Aplicar los filtros.
   const pacientesFiltrados = useMemo(() => {
     const termino = busqueda.trim().toLowerCase();
 
-    return pacientes.filter((paciente) => {
+    return pacientesOptimistas.filter((paciente) => {
       const nombreCompleto =
         `${paciente.nombre} ${paciente.apellido}`.toLowerCase();
 
@@ -51,7 +84,7 @@ export function PacientesPage() {
 
       return coincideBusqueda && coincideEstado;
     });
-  }, [pacientes, busqueda, estado]);
+  }, [pacientesOptimistas, busqueda, estado]);
 
   function limpiarFiltros() {
     setBusqueda("");
@@ -66,99 +99,85 @@ export function PacientesPage() {
     setPacienteSeleccionado(paciente);
     setModalFormularioAbierto(true);
   }
+
   async function guardarPaciente(datos: PacienteFormulario) {
-    try {
-      if (pacienteSeleccionado) {
-        await update(pacienteSeleccionado.id_paciente, datos);
-      } else {
-        await create(datos);
-      }
+    const esEdicion = pacienteSeleccionado !== null;
 
-      await cargarPacientes();
+    const pacienteOptimista: Paciente = esEdicion
+      ? {
+          ...pacienteSeleccionado,
+          ...datos,
+        }
+      : {
+          ...datos,
+          id_paciente: -Date.now(),
+          activo: true,
+        };
 
-      setPacienteSeleccionado(null);
-      setModalFormularioAbierto(false);
-      toast.success("Paciente registrado");
-    } catch (error) {
-      toast.error(extraerMensajeError(error));
-      if (error && typeof error === "object" && "response" in error) {
-        console.error("Respuesta del backend:", error.response);
+    startTransition(async () => {
+      actualizarOptimista({
+        tipo: esEdicion ? "actualizar" : "agregar",
+        paciente: pacienteOptimista,
+      });
+
+      try {
+        await guardarPacienteEnStore(datos, pacienteSeleccionado?.id_paciente);
+
+        setPacienteSeleccionado(null);
+        setModalFormularioAbierto(false);
+
+        toast.success(
+          esEdicion
+            ? "Paciente actualizado correctamente"
+            : "Paciente registrado correctamente",
+        );
+      } catch (error) {
+        toast.error(extraerMensajeError(error));
       }
-    }
+    });
   }
-  function eliminarPaciente(paciente: Paciente) {
+
+  async function eliminarPaciente(paciente: Paciente) {
     const confirmar = window.confirm(
       `¿Seguro que deseas eliminar a ${paciente.nombre} ${paciente.apellido}?`,
     );
 
     if (!confirmar) return;
 
-    setPacientes((actuales) =>
-      actuales.filter((p) => p.id_paciente !== paciente.id_paciente),
-    );
+    try {
+      await eliminarPacienteDelStore(paciente.id_paciente);
 
-    // Si el paciente eliminado estaba seleccionado, limpiamos la selección.
-    setPacienteSeleccionado((actual) =>
-      actual?.id_paciente === paciente.id_paciente ? null : actual,
-    );
+      setPacienteSeleccionado((actual) =>
+        actual?.id_paciente === paciente.id_paciente ? null : actual,
+      );
+
+      toast.success("Paciente eliminado correctamente");
+    } catch (error) {
+      toast.error(extraerMensajeError(error));
+    }
   }
 
-  const cargarPacientes = async () => {
-    setCargando(true);
-    setError(false);
-
-    try {
-      const res = await api.get("/pacientes");
-
-      const lista: Paciente[] = Array.isArray(res.data)
-        ? res.data
-        : res.data.data;
-
-      setPacientes(lista);
-
-      const total = Array.isArray(res.data) ? res.data.length : res.data.total;
-
-      setTotalPacientes(total);
-    } catch (error: unknown) {
-      setError(true);
-      toast.error(extraerMensajeError(error));
-    } finally {
-      setCargando(false);
-    }
-  };
   useEffect(() => {
-    api
-      .get("/doctores")
-      .then((res) => {
-        setTotalMedicos(
-          Array.isArray(res.data) ? res.data.length : res.data.total,
-        );
-      })
-      .catch((error) => {
-        console.error("Error al cargar médicos:", error);
-      });
+    void cargarPacientes().catch((error: unknown) => {
+      toast.error(extraerMensajeError(error));
+    });
+  }, [cargarPacientes]);
 
-    api
-      .get("/citas?estado=Programada")
-      .then((res) => {
-        setCitasProgramadas(
-          Array.isArray(res.data) ? res.data.length : res.data.total,
-        );
-      })
-      .catch((error) => {
-        console.error("Error al cargar citas programadas:", error);
-      });
+  useEffect(() => {
+    async function cargarMetricas() {
+      try {
+        const metricas = await obtenerMetricas();
 
-    api
-      .get("/citas?estado=Completada")
-      .then((res) => {
-        setCompletadasHoy(
-          Array.isArray(res.data) ? res.data.length : res.data.total,
-        );
-      })
-      .catch((error) => {
-        console.error("Error al cargar citas completadas:", error);
-      });
+        setTotalMedicos(metricas.totalMedicos);
+        setCitasProgramadas(metricas.citasProgramadas);
+        setCompletadasHoy(metricas.completadasHoy);
+      } catch (error) {
+        console.error("Error al cargar las métricas:", error);
+        toast.error("No fue posible cargar las métricas.");
+      }
+    }
+
+    void cargarMetricas();
   }, []);
 
   useEffect(() => {
