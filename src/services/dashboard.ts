@@ -1,30 +1,43 @@
 import { api } from "../lib/axios";
 
-interface RespuestaLista {
-  total?: number;
-  data?: unknown[];
-}
-
-function obtenerTotal(respuesta: { data: unknown[] | RespuestaLista }): number {
-  const datos = respuesta.data;
-
+function obtenerTotal(datos: unknown): number {
   if (Array.isArray(datos)) {
     return datos.length;
   }
 
-  return datos.total ?? datos.data?.length ?? 0;
+  if (typeof datos === "object" && datos !== null) {
+    const respuesta = datos as {
+      total?: number;
+      data?: unknown[];
+    };
+
+    return respuesta.total ?? respuesta.data?.length ?? 0;
+  }
+
+  return 0;
 }
 
-export async function obtenerMetricas() {
-  const [doctores, programadas, completadas] = await Promise.all([
-    api.get("/doctores"),
-    api.get("/citas?estado=Programada"),
-    api.get("/citas?estado=Completada"),
-  ]);
+export interface MetricasDashboard {
+  totalMedicos: number;
+  citasProgramadas: number;
+  completadasHoy: number;
+}
+
+export async function obtenerMetricas(): Promise<MetricasDashboard> {
+  const [respuestaDoctores, respuestaProgramadas, respuestaCompletadas] =
+    await Promise.all([
+      api.get("/doctores"),
+      api.get("/citas", {
+        params: { estado: "PROGRAMADA" },
+      }),
+      api.get("/citas", {
+        params: { estado: "COMPLETADA" },
+      }),
+    ]);
 
   return {
-    totalMedicos: obtenerTotal(doctores),
-    citasProgramadas: obtenerTotal(programadas),
-    completadasHoy: obtenerTotal(completadas),
+    totalMedicos: obtenerTotal(respuestaDoctores.data),
+    citasProgramadas: obtenerTotal(respuestaProgramadas.data),
+    completadasHoy: obtenerTotal(respuestaCompletadas.data),
   };
 }

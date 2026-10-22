@@ -16,12 +16,25 @@ import type { PacienteFormulario } from "../schemas/paciente.schema";
 import toast from "react-hot-toast";
 import { extraerMensajeError } from "../lib/errorHandler";
 import { usePacientesStore } from "../stores/usePacientesStore";
-import { obtenerMetricas } from "../services/dashboard";
+import { useDashboardStore } from "../stores/useDashboardStore";
+import { useDebounce } from "../hooks/useDebounce";
+import { usePacientesFiltrosStore } from "../stores/usePacientesFiltrosStore";
 
 export function PacientesPage() {
+  const busqueda = usePacientesFiltrosStore((state) => state.busqueda);
+  const estado = usePacientesFiltrosStore((state) => state.estado);
+  const setBusqueda = usePacientesFiltrosStore((state) => state.setBusqueda);
+  const setEstado = usePacientesFiltrosStore((state) => state.setEstado);
+
+  const limpiarFiltros = usePacientesFiltrosStore(
+    (state) => state.limpiarFiltros,
+  );
+
+  const busquedaDebounced = useDebounce(busqueda, 400);
+  const pacientes = usePacientesStore((state) => state.pacientes);
   const [pacienteSeleccionado, setPacienteSeleccionado] =
     useState<Paciente | null>(null);
-  const pacientes = usePacientesStore((state) => state.pacientes);
+
   const cargando = usePacientesStore((state) => state.cargando);
   const error = usePacientesStore((state) => state.error);
   const totalPacientes = usePacientesStore((state) => state.totalPacientes);
@@ -35,11 +48,13 @@ export function PacientesPage() {
     (state) => state.eliminarPaciente,
   );
   const [modalFormularioAbierto, setModalFormularioAbierto] = useState(false);
-  const [busqueda, setBusqueda] = useState("");
-  const [estado, setEstado] = useState("todos");
-  const [totalMedicos, setTotalMedicos] = useState<number | null>(null);
-  const [citasProgramadas, setCitasProgramadas] = useState<number | null>(null);
-  const [completadasHoy, setCompletadasHoy] = useState<number | null>(null);
+  const totalMedicos = useDashboardStore((state) => state.totalMedicos);
+
+  const citasProgramadas = useDashboardStore((state) => state.citasProgramadas);
+
+  const completadasHoy = useDashboardStore((state) => state.completadasHoy);
+
+  const cargarMetricas = useDashboardStore((state) => state.cargarMetricas);
   const [pacientesOptimistas, actualizarOptimista] = useOptimistic(
     pacientes,
     (
@@ -60,12 +75,12 @@ export function PacientesPage() {
       );
     },
   );
-
   const navigate = useNavigate();
 
   // Aplicar los filtros.
+
   const pacientesFiltrados = useMemo(() => {
-    const termino = busqueda.trim().toLowerCase();
+    const termino = busquedaDebounced.trim().toLowerCase();
 
     return pacientesOptimistas.filter((paciente) => {
       const nombreCompleto =
@@ -75,7 +90,7 @@ export function PacientesPage() {
         nombreCompleto.includes(termino) ||
         paciente.email.toLowerCase().includes(termino) ||
         paciente.telefono.toLowerCase().includes(termino) ||
-        String(paciente.id_paciente).toLowerCase().includes(termino);
+        String(paciente.id_paciente).includes(termino);
 
       const coincideEstado =
         estado === "todos" ||
@@ -84,12 +99,7 @@ export function PacientesPage() {
 
       return coincideBusqueda && coincideEstado;
     });
-  }, [pacientesOptimistas, busqueda, estado]);
-
-  function limpiarFiltros() {
-    setBusqueda("");
-    setEstado("todos");
-  }
+  }, [pacientesOptimistas, busquedaDebounced, estado]);
 
   function verPaciente(paciente: Paciente) {
     navigate(`/pacientes/byid/${paciente.id_paciente}`);
@@ -164,21 +174,11 @@ export function PacientesPage() {
   }, [cargarPacientes]);
 
   useEffect(() => {
-    async function cargarMetricas() {
-      try {
-        const metricas = await obtenerMetricas();
-
-        setTotalMedicos(metricas.totalMedicos);
-        setCitasProgramadas(metricas.citasProgramadas);
-        setCompletadasHoy(metricas.completadasHoy);
-      } catch (error) {
-        console.error("Error al cargar las métricas:", error);
-        toast.error("No fue posible cargar las métricas.");
-      }
-    }
-
-    void cargarMetricas();
-  }, []);
+    void cargarMetricas().catch((error: unknown) => {
+      console.error("Error al cargar las métricas:", error);
+      toast.error("No fue posible cargar las métricas.");
+    });
+  }, [cargarMetricas]);
 
   useEffect(() => {
     void cargarPacientes();
@@ -217,6 +217,7 @@ export function PacientesPage() {
       </div>
 
       {/* Filtros */}
+      <div className="relative w-full max-w-md"></div>
       <PatientFilters
         busqueda={busqueda}
         estado={estado}

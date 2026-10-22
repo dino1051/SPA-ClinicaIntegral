@@ -7,6 +7,7 @@ import { citaSchema, type CitaFormData } from "../../schemas/citaSchema";
 import { useMedicos } from "../../hooks/useMedicos";
 import type { CrearCitaPayload } from "../../types/citas";
 import { usePacientesStore } from "../../stores/usePacientesStore";
+import { useDashboardStore } from "../../stores/useDashboardStore";
 
 interface CitaConfirmada extends CitaFormData {
   id_cita: number;
@@ -48,6 +49,7 @@ export function FormularioCita() {
     cargarPacientes,
   } = usePacientesStore();
 
+  const cargarMetricas = useDashboardStore((state) => state.cargarMetricas);
   useEffect(() => {
     void cargarPacientes();
   }, [cargarPacientes]);
@@ -108,7 +110,9 @@ export function FormularioCita() {
         };
 
         const respuesta = await agregarCita(payload);
-
+        void cargarMetricas().catch((error: unknown) => {
+          console.error("No se pudieron actualizar las métricas:", error);
+        });
         setConfirmacion({
           ...datos,
           id_cita: respuesta.id_cita,
