@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-
+import toast from "react-hot-toast";
 import type { Paciente } from "../../types/pacientes";
 import {
   pacienteSchema,
@@ -10,14 +10,12 @@ import {
 
 interface PatientFormModalProps {
   paciente: Paciente | null;
-  especialidades: string[];
   onCerrar: () => void;
-  onGuardar: (paciente: Paciente) => void;
+  onGuardar: (datos: PacienteFormulario) => void | Promise<void>;
 }
 
 export function PatientFormModal({
   paciente,
-  especialidades,
   onCerrar,
   onGuardar,
 }: PatientFormModalProps) {
@@ -33,9 +31,7 @@ export function PatientFormModal({
       apellido: "",
       email: "",
       telefono: "",
-      especialidadAsignada: "",
-      ultimaCita: "",
-      estado: "activo",
+      fechaNacimiento: "",
     },
   });
 
@@ -46,20 +42,13 @@ export function PatientFormModal({
       apellido: paciente?.apellido ?? "",
       email: paciente?.email ?? "",
       telefono: paciente?.telefono ?? "",
-      especialidadAsignada: paciente?.especialidadAsignada ?? "",
-      ultimaCita: paciente?.ultimaCita ?? "",
-      estado: paciente?.estado ?? "activo",
+      fechaNacimiento: paciente?.fechaNacimiento ?? "",
     });
   }, [paciente, reset]);
 
   // Esta función solo recibe datos que pasaron la validación.
-  const manejarEnvio = (datosFormulario: PacienteFormulario) => {
-    const datosPaciente: Paciente = {
-      id: paciente?.id ?? crypto.randomUUID(),
-      ...datosFormulario,
-    };
-
-    onGuardar(datosPaciente);
+  const manejarEnvio = async (datosFormulario: PacienteFormulario) => {
+    await onGuardar(datosFormulario);
   };
 
   return (
@@ -166,61 +155,15 @@ export function PatientFormModal({
               )}
             </label>
 
-            {/* Estado */}
+            {/* Fecha nacimiento */}
             <label className="space-y-1 text-sm text-gray-300">
-              <span className="block">Estado</span>
-              <select
-                {...register("estado")}
-                aria-invalid={!!errors.estado}
+              <span className="block">Fecha de nacimiento</span>
+              <input
+                {...register("fechaNacimiento")}
+                placeholder="1980-06-10T00:00:00.000Z"
+                aria-invalid={!!errors.fechaNacimiento}
                 className="w-full rounded-xl border border-white/10 bg-surface-2 px-3 py-2 text-white"
-              >
-                <option value="activo">Activo</option>
-                <option value="inactivo">Inactivo</option>
-                <option value="en_espera">En espera</option>
-              </select>
-              {errors.estado && (
-                <p role="alert" className="text-sm text-red-400">
-                  {errors.estado.message}
-                </p>
-              )}
-            </label>
-
-            {/* Especialidad */}
-            <label className="space-y-1 text-sm text-gray-300 sm:col-span-2">
-              <span className="block">Especialidad asignada</span>
-              <input
-                list="especialidades-pacientes"
-                {...register("especialidadAsignada")}
-                aria-invalid={!!errors.especialidadAsignada}
-                className="w-full rounded-xl border border-white/10 bg-surface-2 px-3 py-2.5 text-white"
-                placeholder="Selecciona o escribe una especialidad"
               />
-              <datalist id="especialidades-pacientes">
-                {especialidades.map((especialidad) => (
-                  <option key={especialidad} value={especialidad} />
-                ))}
-              </datalist>
-              {errors.especialidadAsignada && (
-                <p role="alert" className="text-sm text-red-400">
-                  {errors.especialidadAsignada.message}
-                </p>
-              )}
-            </label>
-
-            {/* Última cita */}
-            <label className="space-y-1 text-sm text-gray-300 sm:col-span-2">
-              <span className="block">Última cita</span>
-              <input
-                type="date"
-                {...register("ultimaCita")}
-                aria-invalid={!!errors.ultimaCita}
-                className="w-full rounded-xl border border-white/10 bg-surface-2 px-3 py-2.5 text-white"
-              />
-              {errors.ultimaCita && (
-                <p role="alert" className="text-sm text-red-400">
-                  {errors.ultimaCita.message}
-                </p>
-              )}
             </label>
           </div>
 
@@ -238,7 +181,11 @@ export function PatientFormModal({
               disabled={isSubmitting}
               className="rounded-xl bg-primary px-5 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
             >
-              {paciente ? "Guardar cambios" : "Crear paciente"}
+              {isSubmitting
+                ? "Guardando..."
+                : paciente
+                  ? "Guardar cambios"
+                  : "Crear paciente"}
             </button>
           </div>
         </form>

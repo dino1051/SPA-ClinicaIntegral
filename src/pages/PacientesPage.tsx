@@ -1,36 +1,35 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { UserPlus } from "lucide-react";
-
-import { useMemo, useState } from "react";
-import { PatientDetailsModal } from "../components/patients/PatientiDetailsModal";
+import { api } from "../lib/axios";
+import { useMemo, useState, useEffect } from "react";
 import { PatientFormModal } from "../components/patients/PatientFormModal";
 import type { Paciente } from "../types/pacientes";
-import { pacientesIniciales } from "../data/pacientesData";
 import { CardMetrica } from "../components/MetricCard";
 import { PatientFilters } from "../components/patients/PatientFilters";
 import { PatientTable } from "../components/patients/PatientTable";
+import { PacienteDetallePage } from "./PacienteDetallePage";
+import { create, update } from "../types/pacientes";
+import type { PacienteFormulario } from "../schemas/paciente.schema";
+import toast from "react-hot-toast";
+import { extraerMensajeError } from "../lib/errorHandler";
 
 export function PacientesPage() {
-  const [pacientes, setPacientes] = useState<Paciente[]>(pacientesIniciales);
   const [pacienteSeleccionado, setPacienteSeleccionado] =
     useState<Paciente | null>(null);
 
-  const [modalDetallesAbierto, setModalDetallesAbierto] = useState(false);
   const [modalFormularioAbierto, setModalFormularioAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [estado, setEstado] = useState("todos");
-  const [especialidad, setEspecialidad] = useState("todas");
-
+  const [pacientes, setPacientes] = useState<Paciente[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState(false);
+  const [totalPacientes, setTotalPacientes] = useState<number | null>(null);
+  const [totalMedicos, setTotalMedicos] = useState<number | null>(null);
+  const [citasProgramadas, setCitasProgramadas] = useState<number | null>(null);
+  const [completadasHoy, setCompletadasHoy] = useState<number | null>(null);
   // Obtener las especialidades que existen en los datos.
-  const especialidades = useMemo(() => {
-    return [
-      ...new Set(
-        pacientes
-          .map((paciente) => paciente.especialidadAsignada)
-          .filter(Boolean),
-      ),
-    ].sort((a, b) => a.localeCompare(b, "es"));
-  }, [pacientes]);
+  const navigate = useNavigate();
+
   // Aplicar los filtros.
   const pacientesFiltrados = useMemo(() => {
     const termino = busqueda.trim().toLowerCase();
@@ -43,49 +42,49 @@ export function PacientesPage() {
         nombreCompleto.includes(termino) ||
         paciente.email.toLowerCase().includes(termino) ||
         paciente.telefono.toLowerCase().includes(termino) ||
-        paciente.id.toLowerCase().includes(termino);
+        String(paciente.id_paciente).toLowerCase().includes(termino);
 
-      const coincideEstado = estado === "todos" || paciente.estado === estado;
+      const coincideEstado =
+        estado === "todos" ||
+        (estado === "activo" && paciente.activo === true) ||
+        (estado === "inactivo" && paciente.activo === false);
 
-      const coincideEspecialidad =
-        especialidad === "todas" ||
-        paciente.especialidadAsignada === especialidad;
-
-      return coincideBusqueda && coincideEstado && coincideEspecialidad;
+      return coincideBusqueda && coincideEstado;
     });
-  }, [pacientes, busqueda, estado, especialidad]);
+  }, [pacientes, busqueda, estado]);
 
   function limpiarFiltros() {
     setBusqueda("");
     setEstado("todos");
-    setEspecialidad("todas");
   }
 
   function verPaciente(paciente: Paciente) {
-    setPacienteSeleccionado(paciente);
-    setModalDetallesAbierto(true);
+    navigate(`/pacientes/byid/${paciente.id_paciente}`);
   }
 
   function editarPaciente(paciente: Paciente) {
     setPacienteSeleccionado(paciente);
-    setModalDetallesAbierto(false);
     setModalFormularioAbierto(true);
   }
-  function guardarPaciente(pacienteActualizado: Paciente) {
-    setPacientes((actuales) => {
-      const existe = actuales.some((p) => p.id === pacienteActualizado.id);
-
-      if (existe) {
-        return actuales.map((p) =>
-          p.id === pacienteActualizado.id ? pacienteActualizado : p,
-        );
+  async function guardarPaciente(datos: PacienteFormulario) {
+    try {
+      if (pacienteSeleccionado) {
+        await update(pacienteSeleccionado.id_paciente, datos);
+      } else {
+        await create(datos);
       }
 
-      return [...actuales, pacienteActualizado];
-    });
+      await cargarPacientes();
 
-    setPacienteSeleccionado(null);
-    setModalFormularioAbierto(false);
+      setPacienteSeleccionado(null);
+      setModalFormularioAbierto(false);
+      toast.success("Paciente registrado");
+    } catch (error) {
+      toast.error(extraerMensajeError(error));
+      if (error && typeof error === "object" && "response" in error) {
+        console.error("Respuesta del backend:", error.response);
+      }
+    }
   }
   function eliminarPaciente(paciente: Paciente) {
     const confirmar = window.confirm(
@@ -94,50 +93,77 @@ export function PacientesPage() {
 
     if (!confirmar) return;
 
-    setPacientes((actuales) => actuales.filter((p) => p.id !== paciente.id));
+    setPacientes((actuales) =>
+      actuales.filter((p) => p.id_paciente !== paciente.id_paciente),
+    );
 
     // Si el paciente eliminado estaba seleccionado, limpiamos la selección.
     setPacienteSeleccionado((actual) =>
-      actual?.id === paciente.id ? null : actual,
+      actual?.id_paciente === paciente.id_paciente ? null : actual,
     );
   }
 
-  const totalPacientes = pacientes.length;
+  const cargarPacientes = async () => {
+    setCargando(true);
+    setError(false);
 
-  const pacientesActivos = pacientes.filter(
-    (paciente) => paciente.estado === "activo",
-  ).length;
+    try {
+      const res = await api.get("/pacientes");
 
-  const pacientesInactivos = pacientes.filter(
-    (paciente) => paciente.estado === "inactivo",
-  ).length;
+      const lista: Paciente[] = Array.isArray(res.data)
+        ? res.data
+        : res.data.data;
 
-  const pacientesEnEspera = pacientes.filter(
-    (paciente) => paciente.estado === "en_espera",
-  ).length;
-  {
-    modalDetallesAbierto && (
-      <PatientDetailsModal
-        paciente={pacienteSeleccionado}
-        onCerrar={() => setModalDetallesAbierto(false)}
-        onEditar={editarPaciente}
-      />
-    );
-  }
+      setPacientes(lista);
 
-  {
-    modalFormularioAbierto && (
-      <PatientFormModal
-        paciente={pacienteSeleccionado}
-        especialidades={especialidades}
-        onCerrar={() => {
-          setModalFormularioAbierto(false);
-          setPacienteSeleccionado(null);
-        }}
-        onGuardar={guardarPaciente}
-      />
-    );
-  }
+      const total = Array.isArray(res.data) ? res.data.length : res.data.total;
+
+      setTotalPacientes(total);
+    } catch (error: unknown) {
+      setError(true);
+      toast.error(extraerMensajeError(error));
+    } finally {
+      setCargando(false);
+    }
+  };
+  useEffect(() => {
+    api
+      .get("/doctores")
+      .then((res) => {
+        setTotalMedicos(
+          Array.isArray(res.data) ? res.data.length : res.data.total,
+        );
+      })
+      .catch((error) => {
+        console.error("Error al cargar médicos:", error);
+      });
+
+    api
+      .get("/citas?estado=Programada")
+      .then((res) => {
+        setCitasProgramadas(
+          Array.isArray(res.data) ? res.data.length : res.data.total,
+        );
+      })
+      .catch((error) => {
+        console.error("Error al cargar citas programadas:", error);
+      });
+
+    api
+      .get("/citas?estado=Completada")
+      .then((res) => {
+        setCompletadasHoy(
+          Array.isArray(res.data) ? res.data.length : res.data.total,
+        );
+      })
+      .catch((error) => {
+        console.error("Error al cargar citas completadas:", error);
+      });
+  }, []);
+
+  useEffect(() => {
+    void cargarPacientes();
+  }, []);
   return (
     <section className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -148,81 +174,131 @@ export function PacientesPage() {
           </p>
         </div>
 
-        <Link
-          to="/citas/nueva"
-          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-        >
-          <UserPlus size={18} />
-          Agendar cita
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setPacienteSeleccionado(null);
+              setModalFormularioAbierto(true);
+            }}
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+          >
+            <UserPlus size={18} />
+            Nuevo paciente
+          </button>
+
+          <Link
+            to="/citas/nueva"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            <UserPlus size={18} />
+            Agendar cita
+          </Link>
+        </div>
       </div>
 
       {/* Filtros */}
       <PatientFilters
         busqueda={busqueda}
         estado={estado}
-        especialidad={especialidad}
-        especialidades={especialidades}
         onBusquedaChange={setBusqueda}
         onEstadoChange={setEstado}
-        onEspecialidadChange={setEspecialidad}
         onLimpiar={limpiarFiltros}
       />
-
       {/* Tabla de pacientes */}
-      <PatientTable
-        pacientes={pacientesFiltrados}
-        onVerPaciente={verPaciente}
-        onEditarPaciente={editarPaciente}
-        onEliminarPaciente={eliminarPaciente}
-        onRestablecerFiltros={limpiarFiltros}
-      />
+      {cargando ? (
+        <div className="flex flex-col items-center justify-center gap-3 py-12">
+          <div
+            className="size-10 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600"
+            role="status"
+            aria-label="Cargando pacientes"
+          />
+          <p className="text-sm text-slate-500">Cargando pacientes...</p>
+        </div>
+      ) : error ? (
+        <div
+          className="rounded-xl border border-red-200 bg-red-50 p-6 text-center"
+          role="alert"
+        >
+          <p className="font-semibold text-red-700">
+            No se pudieron cargar los pacientes.
+          </p>
 
+          <p className="mt-1 text-sm text-red-600">
+            Verifica tu conexión e inténtalo de nuevo.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => void cargarPacientes()}
+            className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+          >
+            Reintentar
+          </button>
+        </div>
+      ) : (
+        <>
+          <p className="mb-4 text-sm text-slate-500">
+            Mostrando {pacientesFiltrados.length} de{" "}
+            {totalPacientes ?? pacientes.length} pacientes
+          </p>
+
+          <PatientTable
+            pacientes={pacientesFiltrados}
+            onVerPaciente={verPaciente}
+            onEditarPaciente={editarPaciente}
+            onEliminarPaciente={eliminarPaciente}
+            onRestablecerFiltros={limpiarFiltros}
+          />
+        </>
+      )}
       {/* Métricas */}
       <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-8">
         <CardMetrica
-          id="total"
-          titulo="Total de pacientes"
-          valor={totalPacientes}
+          id="pacientes"
+          titulo="Pacientes"
+          valor={totalPacientes ?? "..."}
           descripcion="Pacientes registrados"
-          tendencia="positiva"
-          icono="groups"
-        />
-
-        <CardMetrica
-          id="activos"
-          titulo="Pacientes activos"
-          valor={pacientesActivos}
-          descripcion="Pacientes con estado activo"
-          tendencia="positiva"
-          icono="person_check"
-        />
-
-        <CardMetrica
-          id="inactivos"
-          titulo="Pacientes inactivos"
-          valor={pacientesInactivos}
-          descripcion="Pacientes con estado inactivo"
-          tendencia="negativa"
-          icono="person_off"
-        />
-
-        <CardMetrica
-          id="espera"
-          titulo="Pacientes en espera"
-          valor={pacientesEnEspera}
-          descripcion="Pacientes pendientes de atención"
           tendencia="neutra"
-          icono="hourglass_empty"
+          icono="users"
+        />
+
+        <CardMetrica
+          id="medicos"
+          titulo="Médicos"
+          valor={totalMedicos ?? "..."}
+          descripcion="Médicos registrados"
+          tendencia="neutra"
+          icono="stethoscope"
+        />
+
+        <CardMetrica
+          id="citas-programadas"
+          titulo="Citas Programadas"
+          valor={citasProgramadas ?? "..."}
+          descripcion="Citas pendientes de realizar"
+          tendencia="neutra"
+          icono="calendar-clock"
+        />
+
+        <CardMetrica
+          id="completadas-hoy"
+          titulo="Completadas Hoy"
+          valor={completadasHoy ?? "..."}
+          descripcion="Citas completadas"
+          tendencia="neutra"
+          icono="calendar-check"
         />
       </div>
-
-      {/* Modal para consultar un paciente */}
-      {modalDetallesAbierto && pacienteSeleccionado && (
-        <PatientDetailsModal
+      {/* Modal para crear o editar pacientes */}
+      {modalFormularioAbierto && (
+        <PatientFormModal
           paciente={pacienteSeleccionado}
-          onCerrar={() => setModalDetallesAbierto(false)}
-          onEditar={editarPaciente}
+          onCerrar={() => {
+            setModalFormularioAbierto(false);
+            setPacienteSeleccionado(null);
+          }}
+          onGuardar={guardarPaciente}
         />
       )}
     </section>
