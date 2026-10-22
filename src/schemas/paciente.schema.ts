@@ -25,11 +25,7 @@ export const pacienteSchema = z.object({
     .min(1, "El teléfono es obligatorio")
     .regex(/^[0-9+()\s-]{10,20}$/, "Ingresa un teléfono válido"),
 
-  especialidadAsignada: z.string().min(1, "Selecciona una especialidad"),
-
-  ultimaCita: z.string().min(1, "La fecha de la última cita es obligatoria"),
-
-  estado: z.enum(["activo", "inactivo", "en_espera"]),
+  fechaNacimiento: z.string().min(1, "La fecha de nacimiento es obligatoria"),
 });
 
 export type PacienteFormulario = z.infer<typeof pacienteSchema>;

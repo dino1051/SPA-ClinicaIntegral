@@ -14,41 +14,23 @@ function getInitials(nombre: string, apellido: string) {
   return `${nombre.charAt(0)}${apellido.charAt(0)}`.toUpperCase();
 }
 
-function StatusBadge({ estado }: Pick<Paciente, "estado">) {
-  const estilos = {
-    activo: {
-      texto: "Activo",
-      contenedor: "bg-secondary-fixed/40 text-secondary",
-      punto: "bg-secondary",
-    },
-    inactivo: {
-      texto: "Inactivo",
-      contenedor: "bg-surface-container text-outline",
-      punto: "bg-outline",
-    },
-    en_espera: {
-      texto: "En espera",
-      contenedor: "bg-surface-container-highest text-primary",
-      punto: "bg-primary-container",
-    },
-  };
-
-  const estilo = estilos[estado];
+function StatusBadge({ activo }: Pick<Paciente, "activo">) {
+  const activoF = activo === true;
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-label-sm font-bold ${estilo.contenedor}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-label-sm font-bold ${
+        activoF
+          ? "bg-secondary-fixed/40 text-secondary"
+          : "bg-surface-container text-outline"
+      }`}
     >
-      <span className={`h-1.5 w-1.5 rounded-full ${estilo.punto}`} />
-      {estilo.texto}
-    </span>
-  );
-}
-
-function SpecialtyBadge({ especialidad }: { especialidad: string }) {
-  return (
-    <span className="inline-block rounded-lg bg-surface-container-high px-2.5 py-0.5 text-label-sm font-semibold text-primary">
-      {especialidad}
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${
+          activoF ? "bg-secondary" : "bg-outline"
+        }`}
+      />
+      {activoF ? "Activo" : "Inactivo"}
     </span>
   );
 }
@@ -73,7 +55,7 @@ function PatientActions({
   return (
     <div className="inline-flex items-center justify-end gap-1">
       <Link
-        to={`/pacientes/${paciente.id}`}
+        to={`/pacientes/ById/${paciente.id_paciente}`}
         className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-blue-600 hover:bg-blue-50"
       >
         <Eye size={18} />
@@ -196,7 +178,7 @@ export function PatientTable({
                 <tbody className="divide-y-0">
                   {pacientes.map((paciente) => (
                     <tr
-                      key={paciente.id}
+                      key={paciente.id_paciente}
                       className="transition-colors hover:bg-surface-container-low/40"
                     >
                       <td className="px-4 py-3">
@@ -211,7 +193,7 @@ export function PatientTable({
                             </span>
 
                             <span className="text-label-sm uppercase text-outline">
-                              {paciente.id}
+                              {paciente.id_paciente}
                             </span>
                           </div>
                         </div>
@@ -229,17 +211,7 @@ export function PatientTable({
                       </td>
 
                       <td className="px-4 py-3">
-                        <SpecialtyBadge
-                          especialidad={paciente.especialidadAsignada}
-                        />
-                      </td>
-
-                      <td className="whitespace-nowrap px-4 py-3 text-label-sm text-on-surface-variant">
-                        {paciente.ultimaCita || "Sin cita"}
-                      </td>
-
-                      <td className="px-4 py-3">
-                        <StatusBadge estado={paciente.estado} />
+                        <StatusBadge activo={paciente.activo} />
                       </td>
 
                       <td className="px-4 py-3 text-right">
@@ -260,7 +232,7 @@ export function PatientTable({
             <div className="grid grid-cols-1 gap-4 md:hidden">
               {pacientes.map((paciente) => (
                 <article
-                  key={paciente.id}
+                  key={paciente.id_paciente}
                   className="flex flex-col gap-space-xs rounded-xl bg-surface-container-low/50 p-space-sm"
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -274,32 +246,12 @@ export function PatientTable({
                           {paciente.nombre} {paciente.apellido}
                         </h4>
                         <span className="text-label-sm text-outline">
-                          {paciente.id}
+                          {paciente.id_paciente}
                         </span>
                       </div>
                     </div>
 
-                    <StatusBadge estado={paciente.estado} />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-space-xs pt-1 text-body-sm">
-                    <div className="min-w-0">
-                      <span className="block text-label-sm text-outline">
-                        Especialidad
-                      </span>
-                      <SpecialtyBadge
-                        especialidad={paciente.especialidadAsignada}
-                      />
-                    </div>
-
-                    <div>
-                      <span className="block text-label-sm text-outline">
-                        Última cita
-                      </span>
-                      <span className="font-semibold text-on-surface">
-                        {paciente.ultimaCita || "Sin cita"}
-                      </span>
-                    </div>
+                    <StatusBadge activo={paciente.activo} />
                   </div>
 
                   <div className="flex items-center justify-between gap-2 pt-1">

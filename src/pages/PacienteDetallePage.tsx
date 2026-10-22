@@ -1,13 +1,65 @@
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, UserRound } from "lucide-react";
-import { pacientesIniciales } from "../data/pacientesData";
+import { api } from "../lib/axios";
+import type { Paciente } from "../types/pacientes";
 
 export function PacienteDetallePage() {
   const { id } = useParams<{ id: string }>();
 
-  const paciente = pacientesIniciales.find((p) => p.id === id);
+  const [paciente, setPaciente] = useState<Paciente | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState(false);
 
-  if (!paciente) {
+  useEffect(() => {
+    if (!id) {
+      setCargando(false);
+      setError(true);
+      return;
+    }
+
+    let activo = true;
+
+    const cargarPaciente = async () => {
+      setCargando(true);
+      setError(false);
+      setPaciente(null);
+
+      try {
+        const res = await api.get<Paciente>(`/pacientes/Byid/${id}`);
+
+        if (activo) {
+          setPaciente(res.data);
+        }
+      } catch (error) {
+        console.error("Error al cargar el paciente:", error);
+
+        if (activo) {
+          setError(true);
+        }
+      } finally {
+        if (activo) {
+          setCargando(false);
+        }
+      }
+    };
+
+    cargarPaciente();
+
+    return () => {
+      activo = false;
+    };
+  }, [id]);
+
+  if (cargando) {
+    return (
+      <section className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
+        <p className="text-slate-500">Cargando paciente...</p>
+      </section>
+    );
+  }
+
+  if (error || !paciente) {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
         <h2 className="text-xl font-bold">Paciente no encontrado</h2>
@@ -26,7 +78,6 @@ export function PacienteDetallePage() {
       </section>
     );
   }
-
   return (
     <section className="space-y-6">
       <Link
@@ -47,7 +98,8 @@ export function PacienteDetallePage() {
             <h2 className="text-2xl font-bold">
               {paciente.nombre} {paciente.apellido}
             </h2>
-            <p className="text-sm text-slate-500">ID: {paciente.id}</p>
+
+            <p className="text-sm text-slate-500">ID: {paciente.id_paciente}</p>
           </div>
         </div>
 
@@ -58,26 +110,32 @@ export function PacienteDetallePage() {
           </div>
 
           <div>
+            <p className="text-sm text-slate-500">Fecha de nacimiento</p>
+            <p className="mt-1 font-medium">{paciente.fechaNacimiento}</p>
+          </div>
+
+          <div>
             <p className="text-sm text-slate-500">Teléfono</p>
             <p className="mt-1 font-medium">{paciente.telefono}</p>
           </div>
 
           <div>
-            <p className="text-sm text-slate-500">Especialidad asignada</p>
-            <p className="mt-1 font-medium">{paciente.especialidadAsignada}</p>
-          </div>
-
-          <div>
-            <p className="text-sm text-slate-500">Última cita</p>
-            <p className="mt-1 font-medium">
-              {paciente.ultimaCita || "Sin citas registradas"}
-            </p>
-          </div>
-
-          <div>
             <p className="text-sm text-slate-500">Estado</p>
-            <span className="mt-2 inline-block rounded-full bg-blue-50 px-3 py-1 text-sm font-medium capitalize text-blue-700">
-              {paciente.estado.replace("_", " ")}
+
+            <span
+              className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${
+                paciente.activo
+                  ? "bg-secondary-fixed/40 text-secondary"
+                  : "bg-surface-container text-outline"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  paciente.activo ? "bg-secondary" : "bg-outline"
+                }`}
+              />
+
+              {paciente.activo ? "Activo" : "Inactivo"}
             </span>
           </div>
         </div>

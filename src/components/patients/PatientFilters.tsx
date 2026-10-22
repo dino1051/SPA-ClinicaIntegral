@@ -1,22 +1,16 @@
 interface PatientFiltersProps {
   busqueda: string;
   estado: string;
-  especialidad: string;
-  especialidades: string[];
   onBusquedaChange: (valor: string) => void;
   onEstadoChange: (valor: string) => void;
-  onEspecialidadChange: (valor: string) => void;
   onLimpiar: () => void;
 }
 
 export function PatientFilters({
   busqueda,
   estado,
-  especialidad,
-  especialidades,
   onBusquedaChange,
   onEstadoChange,
-  onEspecialidadChange,
   onLimpiar,
 }: PatientFiltersProps) {
   return (
@@ -42,29 +36,11 @@ export function PatientFilters({
         <div className="flex flex-wrap items-center gap-space-xs">
           <select
             value={estado}
-            onChange={(event) => onEstadoChange(event.target.value)}
-            aria-label="Filtrar por estado"
-            className="min-w-[130px] flex-1 rounded-lg bg-surface-container-low py-2 pl-3 pr-2 text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+            onChange={(e) => onEstadoChange(e.target.value)}
           >
-            <option value="todos">Estado: Todos</option>
+            <option value="todos">Todos los estados</option>
             <option value="activo">Activo</option>
             <option value="inactivo">Inactivo</option>
-            <option value="en_espera">En espera</option>
-          </select>
-
-          <select
-            value={especialidad}
-            onChange={(event) => onEspecialidadChange(event.target.value)}
-            aria-label="Filtrar por especialidad"
-            className="min-w-[150px] flex-1 rounded-lg bg-surface-container-low py-2 pl-3 pr-2 text-body-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
-          >
-            <option value="todas">Especialidad: Todas</option>
-
-            {especialidades.map((nombre) => (
-              <option key={nombre} value={nombre}>
-                {nombre}
-              </option>
-            ))}
           </select>
 
           <button
