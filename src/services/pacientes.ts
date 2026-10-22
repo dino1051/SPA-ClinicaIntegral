@@ -1,11 +1,36 @@
 import { api } from "../lib/axios";
-import type { Paciente } from "../types/pacientes";
 import type { PacienteFormulario } from "../schemas/paciente.schema";
+import type { Paciente } from "../types/pacientes";
 
-export const create = (data: PacienteFormulario) =>
-  api.post<Paciente>("/pacientes", data);
+interface RespuestaPacientes {
+  pacientes: Paciente[];
+  total: number;
+}
 
-export const update = (id: string, data: Partial<PacienteFormulario>) =>
-  api.patch<Paciente>(`/pacientes/ById/${id}`, data);
+export async function obtenerPacientes(): Promise<RespuestaPacientes> {
+  const respuesta = await api.get("/pacientes");
+  const datos = respuesta.data;
 
-export const remove = (id: string) => api.delete(`/pacientes/ById/${id}`);
+  const pacientes: Paciente[] = Array.isArray(datos) ? datos : datos.data;
+
+  const total: number = Array.isArray(datos)
+    ? datos.length
+    : (datos.total ?? pacientes.length);
+
+  return { pacientes, total };
+}
+
+export function crearPaciente(datos: PacienteFormulario) {
+  return api.post<Paciente>("/pacientes", datos);
+}
+
+export function actualizarPaciente(
+  id: number,
+  datos: Partial<PacienteFormulario>,
+) {
+  return api.patch<Paciente>(`/pacientes/ById/${id}`, datos);
+}
+
+export function eliminarPacienteApi(id: number) {
+  return api.delete(`/pacientes/ById/${id}`);
+}

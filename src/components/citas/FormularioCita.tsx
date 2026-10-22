@@ -1,11 +1,16 @@
-import { useState } from "react";
+import { useState, useOptimistic, useTransition, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-
+import toast from "react-hot-toast";
+import { useCitasStore } from "../../stores/useCitasStore";
 import { citaSchema, type CitaFormData } from "../../schemas/citaSchema";
 import { useMedicos } from "../../hooks/useMedicos";
+import type { CrearCitaPayload } from "../../types/citas";
+import { usePacientesStore } from "../../stores/usePacientesStore";
 
 interface CitaConfirmada extends CitaFormData {
+  id_cita: number;
+  pacienteNombre: string;
   medicoNombre: string;
   especialidad: string;
 }
@@ -19,9 +24,9 @@ function obtenerFechaLocal(): string {
   return `${anio}-${mes}-${dia}`;
 }
 
-const valoresIniciales: CitaFormData = {
-  pacienteNombre: "",
-  medicoId: "",
+const valoresIniciales: Partial<CitaFormData> = {
+  id_paciente: undefined,
+  id_doctor: undefined,
   fecha: "",
   hora: "",
   motivo: "",
@@ -29,14 +34,38 @@ const valoresIniciales: CitaFormData = {
 };
 
 export function FormularioCita() {
-  const { medicos, cargando } = useMedicos();
+  const agregarCita = useCitasStore((state) => state.agregarCita);
+  const {
+    medicos,
+    cargando: cargandoMedicos,
+    error: errorMedicos,
+  } = useMedicos();
+
+  const {
+    pacientes,
+    cargando: cargandoPacientes,
+    error: errorPacientes,
+    cargarPacientes,
+  } = usePacientesStore();
+
+  useEffect(() => {
+    void cargarPacientes();
+  }, [cargarPacientes]);
+
   const [confirmacion, setConfirmacion] = useState<CitaConfirmada | null>(null);
+
+  const [isPending, startTransition] = useTransition();
+
+  const [procesandoOptimista, establecerProcesandoOptimista] = useOptimistic(
+    false,
+    (_estadoActual: boolean, nuevoEstado: boolean) => nuevoEstado,
+  );
 
   const {
     register,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<CitaFormData>({
     resolver: zodResolver(citaSchema),
     defaultValues: valoresIniciales,
@@ -47,20 +76,77 @@ export function FormularioCita() {
       tieneError ? "border-red-500" : "border-white/10"
     }`;
 
-  async function manejarEnvio(datos: CitaFormData) {
-    // Simula el tiempo de respuesta de un servidor.
-    await new Promise<void>((resolve) => setTimeout(resolve, 1500));
+  function manejarEnvio(datos: CitaFormData) {
+    startTransition(async () => {
+      establecerProcesandoOptimista(true);
 
-    const medicoSeleccionado = medicos.find(
-      (medico) => medico.id === datos.medicoId,
-    );
+      try {
+        const pacienteSeleccionado = pacientes.find(
+          (paciente) => paciente.id_paciente === datos.id_paciente,
+        );
 
-    if (!medicoSeleccionado) return;
+        const medicoSeleccionado = medicos.find(
+          (medico) => medico.id_doctor === datos.id_doctor,
+        );
 
-    setConfirmacion({
-      ...datos,
-      medicoNombre: medicoSeleccionado.nombre,
-      especialidad: medicoSeleccionado.especialidad,
+        if (!pacienteSeleccionado || !medicoSeleccionado) {
+          toast.error("Selecciona un paciente y un médico válidos.");
+          return;
+        }
+
+        const fechaLocal = new Date(`${datos.fecha}T${datos.hora}:00`);
+
+        if (Number.isNaN(fechaLocal.getTime())) {
+          toast.error("La fecha y hora no son válidas.");
+          return;
+        }
+
+        const payload: CrearCitaPayload = {
+          fecha: fechaLocal.toISOString(),
+          id_paciente: datos.id_paciente,
+          id_doctor: datos.id_doctor,
+        };
+
+        const respuesta = await agregarCita(payload);
+
+        setConfirmacion({
+          ...datos,
+          id_cita: respuesta.id_cita,
+          pacienteNombre: `${pacienteSeleccionado.nombre} ${pacienteSeleccionado.apellido}`,
+          medicoNombre: `${medicoSeleccionado.nombre} ${medicoSeleccionado.apellido}`,
+          especialidad: medicoSeleccionado.especialidad,
+        });
+
+        toast.success("¡La cita se ha agendado correctamente!");
+      } catch (error) {
+        console.error("Error al crear la cita:", error);
+
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "response" in error
+        ) {
+          const errorApi = error as {
+            response?: {
+              data?: { message?: string | string[] };
+            };
+          };
+
+          const mensaje = errorApi.response?.data?.message;
+
+          if (Array.isArray(mensaje)) {
+            toast.error(mensaje.join(", "));
+            return;
+          }
+
+          if (mensaje) {
+            toast.error(mensaje);
+            return;
+          }
+        }
+
+        toast.error("No fue posible agendar la cita. Inténtalo de nuevo.");
+      }
     });
   }
 
@@ -82,7 +168,11 @@ export function FormularioCita() {
           <h2 className="text-2xl font-bold">¡Cita agendada correctamente!</h2>
 
           <p className="mt-2 text-sm text-gray-400">
-            Esta es la confirmación de tu cita simulada.
+            Tu cita fue registrada en el sistema.
+          </p>
+
+          <p className="mt-2 text-sm text-emerald-400">
+            Número de cita: {confirmacion.id_cita}
           </p>
         </div>
 
@@ -103,6 +193,7 @@ export function FormularioCita() {
               <p className="text-sm text-gray-400">Fecha</p>
               <p className="font-semibold">{confirmacion.fecha}</p>
             </div>
+
             <div>
               <p className="text-sm text-gray-400">Hora</p>
               <p className="font-semibold">{confirmacion.hora}</p>
@@ -131,6 +222,9 @@ export function FormularioCita() {
     );
   }
 
+  const cargandoCatalogos = cargandoMedicos || cargandoPacientes;
+  const errorCatalogos = errorMedicos || errorPacientes;
+
   return (
     <section className="mx-auto w-full max-w-2xl rounded-2xl border border-white/10 bg-surface p-6 text-white shadow-xl sm:p-8">
       <div className="mb-6">
@@ -140,29 +234,53 @@ export function FormularioCita() {
         </p>
       </div>
 
+      {procesandoOptimista && (
+        <p role="status" className="mb-4 text-sm text-blue-400">
+          Procesando la cita...
+        </p>
+      )}
+
+      {errorCatalogos && (
+        <p role="alert" className="mb-4 text-sm text-red-400">
+          {errorCatalogos}
+        </p>
+      )}
+
       <form
         onSubmit={handleSubmit(manejarEnvio)}
         noValidate
         className="space-y-5"
       >
-        {/* Nombre del paciente */}
+        {/* Paciente */}
         <div>
           <label
-            htmlFor="pacienteNombre"
+            htmlFor="id_paciente"
             className="mb-1.5 block text-sm font-medium text-gray-200"
           >
-            Nombre del paciente
+            Paciente
           </label>
-          <input
-            id="pacienteNombre"
-            {...register("pacienteNombre")}
-            placeholder="Ej. Daniel López"
-            aria-invalid={!!errors.pacienteNombre}
-            className={clasesCampo(!!errors.pacienteNombre)}
-          />
-          {errors.pacienteNombre && (
+
+          <select
+            id="id_paciente"
+            {...register("id_paciente", {
+              valueAsNumber: true,
+            })}
+            disabled={cargandoCatalogos || isPending}
+            aria-invalid={!!errors.id_paciente}
+            className={clasesCampo(!!errors.id_paciente)}
+          >
+            <option value="">Selecciona un paciente</option>
+
+            {pacientes.map((paciente) => (
+              <option key={paciente.id_paciente} value={paciente.id_paciente}>
+                {paciente.nombre} {paciente.apellido}
+              </option>
+            ))}
+          </select>
+
+          {errors.id_paciente && (
             <p role="alert" className="mt-1 text-sm text-red-400">
-              {errors.pacienteNombre.message}
+              {errors.id_paciente.message}
             </p>
           )}
         </div>
@@ -170,35 +288,33 @@ export function FormularioCita() {
         {/* Médico */}
         <div>
           <label
-            htmlFor="medicoId"
+            htmlFor="id_doctor"
             className="mb-1.5 block text-sm font-medium text-gray-200"
           >
             Médico
           </label>
+
           <select
-            id="medicoId"
-            {...register("medicoId")}
-            disabled={cargando}
-            aria-invalid={!!errors.medicoId}
-            className={clasesCampo(!!errors.medicoId)}
+            id="id_doctor"
+            {...register("id_doctor", {
+              valueAsNumber: true,
+            })}
+            disabled={cargandoCatalogos || isPending}
+            aria-invalid={!!errors.id_doctor}
+            className={clasesCampo(!!errors.id_doctor)}
           >
-            {cargando ? (
-              <option value="" disabled>
-                Cargando médicos...
-              </option>
-            ) : (
-              <option value="">Selecciona un médico</option>
-            )}
+            <option value="">Selecciona un médico</option>
 
             {medicos.map((medico) => (
-              <option key={medico.id} value={medico.id}>
-                {medico.nombre} · {medico.especialidad}
+              <option key={medico.id_doctor} value={medico.id_doctor}>
+                {medico.nombre} {medico.apellido} · {medico.especialidad}
               </option>
             ))}
           </select>
-          {errors.medicoId && (
+
+          {errors.id_doctor && (
             <p role="alert" className="mt-1 text-sm text-red-400">
-              {errors.medicoId.message}
+              {errors.id_doctor.message}
             </p>
           )}
         </div>
@@ -212,14 +328,17 @@ export function FormularioCita() {
             >
               Fecha
             </label>
+
             <input
               id="fecha"
               type="date"
               min={obtenerFechaLocal()}
               {...register("fecha")}
+              disabled={isPending}
               aria-invalid={!!errors.fecha}
               className={clasesCampo(!!errors.fecha)}
             />
+
             {errors.fecha && (
               <p role="alert" className="mt-1 text-sm text-red-400">
                 {errors.fecha.message}
@@ -234,13 +353,16 @@ export function FormularioCita() {
             >
               Hora
             </label>
+
             <input
               id="hora"
               type="time"
               {...register("hora")}
+              disabled={isPending}
               aria-invalid={!!errors.hora}
               className={clasesCampo(!!errors.hora)}
             />
+
             {errors.hora && (
               <p role="alert" className="mt-1 text-sm text-red-400">
                 {errors.hora.message}
@@ -257,14 +379,17 @@ export function FormularioCita() {
           >
             Motivo de la consulta
           </label>
+
           <textarea
             id="motivo"
             rows={4}
             {...register("motivo")}
+            disabled={isPending}
             placeholder="Describe el motivo de la cita (10 a 500 caracteres)"
             aria-invalid={!!errors.motivo}
             className={clasesCampo(!!errors.motivo)}
           />
+
           {errors.motivo && (
             <p role="alert" className="mt-1 text-sm text-red-400">
               {errors.motivo.message}
@@ -280,9 +405,11 @@ export function FormularioCita() {
           >
             Nivel de urgencia
           </label>
+
           <select
             id="urgencia"
             {...register("urgencia")}
+            disabled={isPending}
             aria-invalid={!!errors.urgencia}
             className={clasesCampo(!!errors.urgencia)}
           >
@@ -291,6 +418,7 @@ export function FormularioCita() {
             <option value="alta">Alta</option>
             <option value="critica">Crítica</option>
           </select>
+
           {errors.urgencia && (
             <p role="alert" className="mt-1 text-sm text-red-400">
               {errors.urgencia.message}
@@ -300,10 +428,10 @@ export function FormularioCita() {
 
         <button
           type="submit"
-          disabled={isSubmitting || cargando}
+          disabled={cargandoCatalogos || isPending}
           className="w-full rounded-xl bg-primary px-5 py-3 font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isSubmitting ? "Agendando..." : "Agendar cita"}
+          {isPending ? "Agendando..." : "Agendar cita"}
         </button>
       </form>
     </section>
