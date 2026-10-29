@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Users, CalendarPlus } from "lucide-react";
+import { Users, CalendarPlus, CalendarDays } from "lucide-react";
 
 const enlaces = [
   {
@@ -9,10 +9,16 @@ const enlaces = [
     exacto: true,
   },
   {
+    nombre: "Citas",
+    ruta: "/citas",
+    icono: CalendarDays,
+    exacto: true,
+  },
+  {
     nombre: "Agendar cita",
     ruta: "/citas/nueva",
     icono: CalendarPlus,
-    exacto: false,
+    exacto: true,
   },
 ];
 

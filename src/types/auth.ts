@@ -1,5 +1,4 @@
-export type Role = "RECEPCIONISTA" | "DOCTOR" | "ADMIN";
-
+export type Role = "ADMIN" | "DOCTOR" | "RECEPCION";
 export interface LoginDTO {
   email: string;
   password: string;

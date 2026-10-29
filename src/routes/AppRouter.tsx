@@ -9,6 +9,7 @@ import ProtectedRoute from "../auth/ProtectedRoute";
 import ProfilePage from "../pages/ProfilePage";
 import LoginPage from "../pages/LoginPage";
 //import RegisterPage from "../pages/RegisterPage";
+import CitasPage from "../pages/CitasPage";
 
 export function AppRouter() {
   return (
@@ -19,6 +20,7 @@ export function AppRouter() {
         <Route element={<MainLayout />}>
           {/* Rutas para cualquier usuario autenticado */}
           <Route element={<ProtectedRoute />}>
+            <Route path="/citas" element={<CitasPage />} />
             <Route path="/pacientes" element={<PacientesPage />} />
             <Route
               path="/pacientes/Byid/:id"
@@ -28,9 +30,7 @@ export function AppRouter() {
           </Route>
 
           {/* Solo recepción puede gestionar usuarios */}
-          <Route
-            element={<ProtectedRoute rolesPermitidos={["RECEPCIONISTA"]} />}
-          >
+          <Route element={<ProtectedRoute rolesPermitidos={["RECEPCION"]} />}>
             <Route path="/citas/nueva" element={<NuevaCitaPage />} />
           </Route>
         </Route>
