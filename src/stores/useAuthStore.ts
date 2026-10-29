@@ -25,9 +25,10 @@ interface AuthState {
 
   actualizarUsuario: (datos: Partial<UsuarioPerfil>) => void;
 }
-
 interface TokenPayload {
-  role?: Role;
+  id: number;
+  email: string;
+  role: Role;
   exp?: number;
 }
 
@@ -39,7 +40,11 @@ function obtenerRol(token: string): Role | null {
       return null;
     }
 
-    if (payload.role === "RECEPCIONISTA" || payload.role === "DOCTOR") {
+    if (
+      payload.role === "ADMIN" ||
+      payload.role === "DOCTOR" ||
+      payload.role === "RECEPCION"
+    ) {
       return payload.role;
     }
 
@@ -50,8 +55,8 @@ function obtenerRol(token: string): Role | null {
 }
 
 const usuarioInicial: UsuarioPerfil = {
-  nombre: "María González",
-  email: "maria.gonzalez@clinica.com",
+  nombre: "Perfil Pruebas",
+  email: "perfilpruebas@clinica.com",
   telefono: "5512345678",
   foto: null,
 };
