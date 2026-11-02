@@ -1,9 +1,11 @@
 import { create } from "zustand";
-import { iniciarSesion, registrarUsuario } from "../services/auth";
-import type { LoginDTO, RegisterDTO, Role } from "../types/auth";
-import { jwtDecode } from "jwt-decode";
+import { persist, createJSONStorage } from "zustand/middleware";
+
+import { iniciarSesion } from "../services/auth";
+import type { LoginDTO, Role } from "../types/auth";
 
 export interface UsuarioPerfil {
+  id: number | null;
   nombre: string;
   email: string;
   telefono: string;
@@ -15,128 +17,108 @@ interface AuthState {
   cargando: boolean;
   error: string | null;
   role: Role | null;
-
   usuario: UsuarioPerfil;
 
   login: (datos: LoginDTO) => Promise<void>;
-  register: (datos: RegisterDTO) => Promise<void>;
   logout: () => void;
   limpiarError: () => void;
-
   actualizarUsuario: (datos: Partial<UsuarioPerfil>) => void;
 }
-interface TokenPayload {
-  id: number;
-  email: string;
-  role: Role;
-  exp?: number;
-}
 
-function obtenerRol(token: string): Role | null {
-  try {
-    const payload = jwtDecode<TokenPayload>(token);
-
-    if (payload.exp && payload.exp * 1000 <= Date.now()) {
-      return null;
-    }
-
-    if (
-      payload.role === "ADMIN" ||
-      payload.role === "DOCTOR" ||
-      payload.role === "RECEPCION"
-    ) {
-      return payload.role;
-    }
-
-    return null;
-  } catch {
-    return null;
+function obtenerRol(role?: string): Role | null {
+  if (role === "ADMIN" || role === "DOCTOR" || role === "RECEPCION") {
+    return role;
   }
+
+  return null;
 }
 
 const usuarioInicial: UsuarioPerfil = {
-  nombre: "Perfil Pruebas",
-  email: "perfilpruebas@clinica.com",
-  telefono: "5512345678",
+  id: null,
+  nombre: "",
+  email: "",
+  telefono: "",
   foto: null,
 };
 
-export const useAuthStore = create<AuthState>()((set) => ({
-  token: localStorage.getItem("token"),
-  cargando: false,
-  error: null,
-
-  role: localStorage.getItem("token")
-    ? obtenerRol(localStorage.getItem("token")!)
-    : null,
-
-  usuario: { ...usuarioInicial },
-
-  login: async (datos) => {
-    set({ cargando: true, error: null });
-
-    try {
-      const respuesta = await iniciarSesion(datos);
-      const role = obtenerRol(respuesta.token);
-
-      localStorage.setItem("token", respuesta.token);
-
-      set({
-        token: respuesta.token,
-        role,
-        error: null,
-
-        // Temporalmente usamos el correo del inicio de sesión.
-        usuario: {
-          ...usuarioInicial,
-          email: datos.email,
-        },
-      });
-    } catch (error: any) {
-      const mensaje =
-        error.response?.data?.message ?? "No fue posible iniciar sesión.";
-
-      set({ error: mensaje });
-      throw error;
-    } finally {
-      set({ cargando: false });
-    }
-  },
-
-  register: async (datos) => {
-    set({ cargando: true, error: null });
-
-    try {
-      await registrarUsuario(datos);
-    } catch (error: any) {
-      const mensaje =
-        error.response?.data?.message ?? "No fue posible registrar el usuario.";
-
-      set({ error: mensaje });
-      throw error;
-    } finally {
-      set({ cargando: false });
-    }
-  },
-
-  logout: () => {
-    localStorage.removeItem("token");
-
-    set({
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
       token: null,
-      role: null,
+      cargando: false,
       error: null,
+      role: null,
       usuario: { ...usuarioInicial },
-    });
-  },
 
-  limpiarError: () => set({ error: null }),
+      // Iniciar sesión
+      login: async (datos) => {
+        set({ cargando: true, error: null });
 
-  actualizarUsuario: (datos) =>
-    set((state) => ({
-      usuario: {
-        ...state.usuario,
-        ...datos,
+        try {
+          const respuesta = await iniciarSesion(datos);
+
+          const role = obtenerRol(respuesta.usuario.role);
+
+          if (!role) {
+            throw new Error("El usuario tiene un rol no válido.");
+          }
+
+          set({
+            token: respuesta.token,
+            role,
+            error: null,
+            usuario: {
+              id: respuesta.usuario.id,
+              nombre: respuesta.usuario.nombre ?? "",
+              email: respuesta.usuario.email,
+              telefono: "",
+              foto: null,
+            },
+          });
+        } catch (error: any) {
+          const mensaje =
+            error.response?.data?.message ??
+            error.message ??
+            "No fue posible iniciar sesión.";
+
+          set({ error: mensaje });
+          throw error;
+        } finally {
+          set({ cargando: false });
+        }
       },
-    })),
-}));
+
+      // Cerrar sesión
+      logout: () => {
+        set({
+          token: null,
+          role: null,
+          error: null,
+          usuario: { ...usuarioInicial },
+        });
+      },
+
+      limpiarError: () => set({ error: null }),
+
+      // Actualizar información local del perfil
+      actualizarUsuario: (datos) =>
+        set((state) => ({
+          usuario: {
+            ...state.usuario,
+            ...datos,
+          },
+        })),
+    }),
+    {
+      name: "auth-storage",
+      storage: createJSONStorage(() => localStorage),
+
+      // Solo persistimos los datos que necesitamos conservar.
+      partialize: (state) => ({
+        token: state.token,
+        role: state.role,
+        usuario: state.usuario,
+      }),
+    },
+  ),
+);
