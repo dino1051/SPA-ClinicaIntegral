@@ -7,23 +7,33 @@ import {
   useOptimistic,
   startTransition,
 } from "react";
+
 import { PatientFormModal } from "../components/patients/PatientFormModal";
 import type { Paciente } from "../types/pacientes";
 import { CardMetrica } from "../components/MetricCard";
 import { PatientFilters } from "../components/patients/PatientFilters";
 import { PatientTable } from "../components/patients/PatientTable";
 import type { PacienteFormulario } from "../schemas/paciente.schema";
+
 import toast from "react-hot-toast";
 import { extraerMensajeError } from "../lib/errorHandler";
-import { usePacientesStore } from "../stores/usePacientesStore";
+
+import { usePacientes } from "../hooks/usePacientes";
 import { useDashboardStore } from "../stores/useDashboardStore";
 import { useDebounce } from "../hooks/useDebounce";
 import { usePacientesFiltrosStore } from "../stores/usePacientesFiltrosStore";
 
 export function PacientesPage() {
+  // ==============================
+  // Filtros de pacientes
+  // ==============================
+
   const busqueda = usePacientesFiltrosStore((state) => state.busqueda);
+
   const estado = usePacientesFiltrosStore((state) => state.estado);
+
   const setBusqueda = usePacientesFiltrosStore((state) => state.setBusqueda);
+
   const setEstado = usePacientesFiltrosStore((state) => state.setEstado);
 
   const limpiarFiltros = usePacientesFiltrosStore(
@@ -31,23 +41,37 @@ export function PacientesPage() {
   );
 
   const busquedaDebounced = useDebounce(busqueda, 400);
-  const pacientes = usePacientesStore((state) => state.pacientes);
+
+  // ==============================
+  // Custom Hook de pacientes
+  // ==============================
+
+  const {
+    pacientes,
+    totalPacientes,
+    cargando,
+    error,
+    cargarPacientes,
+    crear,
+    actualizar,
+    eliminar,
+  } = usePacientes();
+
+  // ==============================
+  // Estados locales
+  // ==============================
+
   const [pacienteSeleccionado, setPacienteSeleccionado] =
     useState<Paciente | null>(null);
 
-  const cargando = usePacientesStore((state) => state.cargando);
-  const error = usePacientesStore((state) => state.error);
-  const totalPacientes = usePacientesStore((state) => state.totalPacientes);
-  const cargarPacientes = usePacientesStore((state) => state.cargarPacientes);
-
-  const guardarPacienteEnStore = usePacientesStore(
-    (state) => state.guardarPaciente,
-  );
-
-  const eliminarPacienteDelStore = usePacientesStore(
-    (state) => state.eliminarPaciente,
-  );
   const [modalFormularioAbierto, setModalFormularioAbierto] = useState(false);
+
+  const navigate = useNavigate();
+
+  // ==============================
+  // Store del dashboard
+  // ==============================
+
   const totalMedicos = useDashboardStore((state) => state.totalMedicos);
 
   const citasProgramadas = useDashboardStore((state) => state.citasProgramadas);
@@ -55,6 +79,11 @@ export function PacientesPage() {
   const completadasHoy = useDashboardStore((state) => state.completadasHoy);
 
   const cargarMetricas = useDashboardStore((state) => state.cargarMetricas);
+
+  // ==============================
+  // Actualizaciones optimistas
+  // ==============================
+
   const [pacientesOptimistas, actualizarOptimista] = useOptimistic(
     pacientes,
     (
@@ -75,9 +104,10 @@ export function PacientesPage() {
       );
     },
   );
-  const navigate = useNavigate();
 
-  // Aplicar los filtros.
+  // ==============================
+  // Filtrar pacientes
+  // ==============================
 
   const pacientesFiltrados = useMemo(() => {
     const termino = busquedaDebounced.trim().toLowerCase();
@@ -101,6 +131,10 @@ export function PacientesPage() {
     });
   }, [pacientesOptimistas, busquedaDebounced, estado]);
 
+  // ==============================
+  // Navegación y selección
+  // ==============================
+
   function verPaciente(paciente: Paciente) {
     navigate(`/pacientes/byid/${paciente.id_paciente}`);
   }
@@ -109,6 +143,10 @@ export function PacientesPage() {
     setPacienteSeleccionado(paciente);
     setModalFormularioAbierto(true);
   }
+
+  // ==============================
+  // Crear o actualizar paciente
+  // ==============================
 
   async function guardarPaciente(datos: PacienteFormulario) {
     const esEdicion = pacienteSeleccionado !== null;
@@ -131,7 +169,11 @@ export function PacientesPage() {
       });
 
       try {
-        await guardarPacienteEnStore(datos, pacienteSeleccionado?.id_paciente);
+        if (esEdicion && pacienteSeleccionado) {
+          await actualizar(pacienteSeleccionado.id_paciente, datos);
+        } else {
+          await crear(datos);
+        }
 
         setPacienteSeleccionado(null);
         setModalFormularioAbierto(false);
@@ -147,6 +189,10 @@ export function PacientesPage() {
     });
   }
 
+  // ==============================
+  // Eliminar paciente
+  // ==============================
+
   async function eliminarPaciente(paciente: Paciente) {
     const confirmar = window.confirm(
       `¿Seguro que deseas eliminar a ${paciente.nombre} ${paciente.apellido}?`,
@@ -155,7 +201,7 @@ export function PacientesPage() {
     if (!confirmar) return;
 
     try {
-      await eliminarPacienteDelStore(paciente.id_paciente);
+      await eliminar(paciente.id_paciente);
 
       setPacienteSeleccionado((actual) =>
         actual?.id_paciente === paciente.id_paciente ? null : actual,
@@ -167,11 +213,9 @@ export function PacientesPage() {
     }
   }
 
-  useEffect(() => {
-    void cargarPacientes().catch((error: unknown) => {
-      toast.error(extraerMensajeError(error));
-    });
-  }, [cargarPacientes]);
+  // ==============================
+  // Cargar métricas del dashboard
+  // ==============================
 
   useEffect(() => {
     void cargarMetricas().catch((error: unknown) => {
@@ -180,14 +224,18 @@ export function PacientesPage() {
     });
   }, [cargarMetricas]);
 
-  useEffect(() => {
-    void cargarPacientes();
-  }, []);
+  // ==============================
+  // Renderizado
+  // ==============================
+
   return (
     <section className="space-y-8">
+      {/* Encabezado */}
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Pacientes</h2>
+
           <p className="mt-1 text-sm text-slate-500">
             Administra y consulta la información de tus pacientes.
           </p>
@@ -217,7 +265,7 @@ export function PacientesPage() {
       </div>
 
       {/* Filtros */}
-      <div className="relative w-full max-w-md"></div>
+
       <PatientFilters
         busqueda={busqueda}
         estado={estado}
@@ -225,7 +273,9 @@ export function PacientesPage() {
         onEstadoChange={setEstado}
         onLimpiar={limpiarFiltros}
       />
+
       {/* Tabla de pacientes */}
+
       {cargando ? (
         <div className="flex flex-col items-center justify-center gap-3 py-12">
           <div
@@ -233,6 +283,7 @@ export function PacientesPage() {
             role="status"
             aria-label="Cargando pacientes"
           />
+
           <p className="text-sm text-slate-500">Cargando pacientes...</p>
         </div>
       ) : error ? (
@@ -250,7 +301,11 @@ export function PacientesPage() {
 
           <button
             type="button"
-            onClick={() => void cargarPacientes()}
+            onClick={() =>
+              void cargarPacientes().catch((error: unknown) => {
+                toast.error(extraerMensajeError(error));
+              })
+            }
             className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
           >
             Reintentar
@@ -272,8 +327,10 @@ export function PacientesPage() {
           />
         </>
       )}
+
       {/* Métricas */}
-      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-8">
+
+      <div className="mt-8 mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <CardMetrica
           id="pacientes"
           titulo="Pacientes"
@@ -310,7 +367,9 @@ export function PacientesPage() {
           icono="calendar-check"
         />
       </div>
+
       {/* Modal para crear o editar pacientes */}
+
       {modalFormularioAbierto && (
         <PatientFormModal
           paciente={pacienteSeleccionado}
