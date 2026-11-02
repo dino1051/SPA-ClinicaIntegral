@@ -1,45 +1,58 @@
-import { useEffect, useState } from "react";
-import { api } from "../lib/axios";
-
-export interface Paciente {
-  id_paciente: string;
-  nombre: string;
-  apellido: string;
-  activo: boolean;
-}
+import { useEffect } from "react";
+import { usePacientesStore } from "../stores/usePacientesStore";
+import type { PacienteFormulario } from "../schemas/paciente.schema";
 
 export function usePacientes() {
-  const [pacientes, setPacientes] = useState<Paciente[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // ==============================
+  // Estado de pacientes
+  // ==============================
+  const pacientes = usePacientesStore((state) => state.pacientes);
+  const totalPacientes = usePacientesStore((state) => state.totalPacientes);
+  const cargando = usePacientesStore((state) => state.cargando);
+  const error = usePacientesStore((state) => state.error);
 
+  // ==============================
+  // Acciones del store
+  // ==============================
+  const cargarPacientes = usePacientesStore((state) => state.cargarPacientes);
+
+  const guardarPaciente = usePacientesStore((state) => state.guardarPaciente);
+
+  const eliminarPaciente = usePacientesStore((state) => state.eliminarPaciente);
+
+  // ==============================
+  // Acciones para la página
+  // ==============================
+  const crear = (datos: PacienteFormulario) => {
+    return guardarPaciente(datos);
+  };
+
+  const actualizar = (id: number, datos: PacienteFormulario) => {
+    return guardarPaciente(datos, id);
+  };
+
+  const eliminar = (id: number) => {
+    return eliminarPaciente(id);
+  };
+
+  // ==============================
+  // Carga inicial
+  // ==============================
   useEffect(() => {
-    let activo = true;
+    void cargarPacientes().catch(() => undefined);
+  }, [cargarPacientes]);
 
-    async function cargarPacientes() {
-      try {
-        const respuesta = await api.get<Paciente[]>("/pacientes");
-
-        if (activo) {
-          setPacientes(respuesta.data.filter((paciente) => paciente.activo));
-        }
-      } catch {
-        if (activo) {
-          setError("No fue posible cargar los pacientes.");
-        }
-      } finally {
-        if (activo) {
-          setCargando(false);
-        }
-      }
-    }
-
-    void cargarPacientes();
-
-    return () => {
-      activo = false;
-    };
-  }, []);
-
-  return { pacientes, cargando, error };
+  // ==============================
+  // Retorno del Custom Hook
+  // ==============================
+  return {
+    pacientes,
+    totalPacientes,
+    cargando,
+    error,
+    cargarPacientes,
+    crear,
+    actualizar,
+    eliminar,
+  };
 }

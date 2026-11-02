@@ -1,58 +1,31 @@
 import { useEffect, useState } from "react";
 import { CalendarDays, CheckCircle2, Clock3, XCircle } from "lucide-react";
 import toast from "react-hot-toast";
-import PaginacionCitas from "../components/citas/PaginacionCitas";
 
-import { obtenerCitas } from "../services/citas";
-import type { Cita } from "../types/citas.ts";
+import PaginacionCitas from "../components/citas/PaginacionCitas";
 import TablaCitas from "../components/citas/TablaCitas";
 import FiltrosCitas from "../components/citas/FiltrosCitas";
+
+import { useCitas } from "../hooks/useCitas";
 import type { EstadoCita } from "../types/citas";
 
 export default function CitasPage() {
-  const [citas, setCitas] = useState<Cita[]>([]);
-  const [cargando, setCargando] = useState(true);
+  // Estado y acciones proporcionados por el Custom Hook
+  const { citas, cargando, error, cargarCitas } = useCitas();
+
+  // Estados locales de la página
   const [paginaActual, setPaginaActual] = useState(1);
   const [busqueda, setBusqueda] = useState("");
   const [estado, setEstado] = useState<EstadoCita | "TODAS">("TODAS");
   const [doctorId, setDoctorId] = useState("TODOS");
   const [fecha, setFecha] = useState("");
-  useEffect(() => {
-    let activo = true;
 
-    async function cargarCitas() {
-      try {
-        setCargando(true);
-
-        const datos = await obtenerCitas();
-
-        console.log("Citas recibidas:", datos);
-
-        if (activo) {
-          setCitas(datos);
-        }
-      } catch (error) {
-        console.error("Error al cargar citas:", error);
-
-        if (activo) {
-          toast.error("No fue posible cargar las citas.");
-        }
-      } finally {
-        if (activo) {
-          setCargando(false);
-        }
-      }
-    }
-
-    void cargarCitas();
-
-    return () => {
-      activo = false;
-    };
-  }, []);
+  // Obtener los doctores que tienen citas registradas
   const doctores = Array.from(
     new Map(citas.map((cita) => [cita.doctor.id_doctor, cita.doctor])).values(),
   );
+
+  // Aplicar filtros
   const citasFiltradas = citas.filter((cita) => {
     const nombrePaciente =
       `${cita.paciente.nombre} ${cita.paciente.apellido}`.toLowerCase();
@@ -73,6 +46,7 @@ export default function CitasPage() {
     );
   });
 
+  // Paginación
   const citasPorPagina = 8;
 
   const totalPaginas = Math.ceil(citasFiltradas.length / citasPorPagina);
@@ -82,16 +56,22 @@ export default function CitasPage() {
 
   const citasPaginadas = citasFiltradas.slice(indiceInicial, indiceFinal);
 
+  // Regresar a la primera página cuando cambien los filtros
   useEffect(() => {
     setPaginaActual(1);
   }, [busqueda, estado, doctorId, fecha]);
+
+  // Estadísticas
   const total = citas.length;
+
   const programadas = citas.filter(
     (cita) => cita.estado === "PROGRAMADA",
   ).length;
+
   const completadas = citas.filter(
     (cita) => cita.estado === "COMPLETADA",
   ).length;
+
   const canceladas = citas.filter((cita) => cita.estado === "CANCELADA").length;
 
   const estadisticas = [
@@ -120,6 +100,24 @@ export default function CitasPage() {
       estilo: "bg-red-50 text-red-600",
     },
   ];
+
+  // Limpiar filtros
+  const limpiarFiltros = () => {
+    setBusqueda("");
+    setEstado("TODAS");
+    setDoctorId("TODOS");
+    setFecha("");
+    setPaginaActual(1);
+  };
+
+  // Volver a consultar las citas
+  const reintentarCarga = async () => {
+    try {
+      await cargarCitas();
+    } catch {
+      toast.error("No fue posible cargar las citas.");
+    }
+  };
 
   return (
     <main className="min-h-screen bg-slate-50 p-4 sm:p-8">
@@ -175,6 +173,7 @@ export default function CitasPage() {
               Consulta las citas registradas en el sistema.
             </p>
           </div>
+
           <FiltrosCitas
             busqueda={busqueda}
             estado={estado}
@@ -185,17 +184,26 @@ export default function CitasPage() {
             onEstadoChange={setEstado}
             onDoctorChange={setDoctorId}
             onFechaChange={setFecha}
-            onLimpiar={() => {
-              setBusqueda("");
-              setEstado("TODAS");
-              setDoctorId("TODOS");
-              setFecha("");
-              setPaginaActual(1);
-            }}
+            onLimpiar={limpiarFiltros}
           />
+
           {cargando ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">
               Cargando citas...
+            </div>
+          ) : error ? (
+            <div className="rounded-2xl border border-red-200 bg-white p-12 text-center">
+              <p className="font-semibold text-red-600">
+                No fue posible cargar las citas.
+              </p>
+
+              <button
+                type="button"
+                onClick={reintentarCarga}
+                className="mt-4 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700"
+              >
+                Reintentar
+              </button>
             </div>
           ) : citasFiltradas.length > 0 ? (
             <>
