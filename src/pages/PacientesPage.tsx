@@ -19,6 +19,10 @@ import { usePacientesStore } from "../stores/usePacientesStore";
 import { useDashboardStore } from "../stores/useDashboardStore";
 import { useDebounce } from "../hooks/useDebounce";
 import { usePacientesFiltrosStore } from "../stores/usePacientesFiltrosStore";
+import EstadoVacio from "../components/ui/EstadoVacio";
+import AlertaBanner from "../components/ui/AlertaBanner";
+import ModalConfirmacion from "../components/ui/ModalConfirmacion";
+import SkeletonPacienteRow from "../components/ui/skeletons/SkeletonPacienteRow";
 
 export function PacientesPage() {
   const busqueda = usePacientesFiltrosStore((state) => state.busqueda);
@@ -76,7 +80,11 @@ export function PacientesPage() {
     },
   );
   const navigate = useNavigate();
+  const [pacienteAEliminar, setPacienteAEliminar] = useState<Paciente | null>(
+    null,
+  );
 
+  const [eliminando, setEliminando] = useState(false);
   // Aplicar los filtros.
 
   const pacientesFiltrados = useMemo(() => {
@@ -147,23 +155,31 @@ export function PacientesPage() {
     });
   }
 
-  async function eliminarPaciente(paciente: Paciente) {
-    const confirmar = window.confirm(
-      `¿Seguro que deseas eliminar a ${paciente.nombre} ${paciente.apellido}?`,
-    );
+  // Abre el modal de confirmación
+  function solicitarEliminarPaciente(paciente: Paciente) {
+    setPacienteAEliminar(paciente);
+  }
 
-    if (!confirmar) return;
+  // Ejecuta la eliminación
+  async function confirmarEliminarPaciente() {
+    if (!pacienteAEliminar) return;
 
     try {
-      await eliminarPacienteDelStore(paciente.id_paciente);
+      setEliminando(true);
+
+      await eliminarPacienteDelStore(pacienteAEliminar.id_paciente);
 
       setPacienteSeleccionado((actual) =>
-        actual?.id_paciente === paciente.id_paciente ? null : actual,
+        actual?.id_paciente === pacienteAEliminar.id_paciente ? null : actual,
       );
 
       toast.success("Paciente eliminado correctamente");
+
+      setPacienteAEliminar(null);
     } catch (error) {
       toast.error(extraerMensajeError(error));
+    } finally {
+      setEliminando(false);
     }
   }
 
@@ -179,10 +195,11 @@ export function PacientesPage() {
       toast.error("No fue posible cargar las métricas.");
     });
   }, [cargarMetricas]);
-
+  /*
   useEffect(() => {
     void cargarPacientes();
   }, []);
+  */
   return (
     <section className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -227,49 +244,68 @@ export function PacientesPage() {
       />
       {/* Tabla de pacientes */}
       {cargando ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-12">
-          <div
-            className="size-10 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600"
-            role="status"
-            aria-label="Cargando pacientes"
-          />
-          <p className="text-sm text-slate-500">Cargando pacientes...</p>
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <SkeletonPacienteRow key={index} />
+          ))}
         </div>
       ) : error ? (
-        <div
-          className="rounded-xl border border-red-200 bg-red-50 p-6 text-center"
-          role="alert"
-        >
-          <p className="font-semibold text-red-700">
-            No se pudieron cargar los pacientes.
-          </p>
-
-          <p className="mt-1 text-sm text-red-600">
-            Verifica tu conexión e inténtalo de nuevo.
-          </p>
+        <div className="space-y-3">
+          <AlertaBanner
+            tipo="error"
+            titulo="Error al cargar pacientes"
+            mensaje="No se pudieron obtener los pacientes. Verifica tu conexión e inténtalo nuevamente."
+          />
 
           <button
             type="button"
             onClick={() => void cargarPacientes()}
-            className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+            className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
           >
             Reintentar
           </button>
         </div>
       ) : (
         <>
-          <p className="mb-4 text-sm text-slate-500">
-            Mostrando {pacientesFiltrados.length} de{" "}
-            {totalPacientes ?? pacientes.length} pacientes
-          </p>
+          {pacientesFiltrados.length === 0 ? (
+            pacientes.length === 0 ? (
+              <EstadoVacio
+                titulo="No hay pacientes registrados"
+                descripcion="Registra tu primer paciente para comenzar a gestionar sus citas."
+                accion={{
+                  label: "Agregar paciente",
+                  onClick: () => {
+                    setPacienteSeleccionado(null);
+                    setModalFormularioAbierto(true);
+                  },
+                }}
+              />
+            ) : (
+              <EstadoVacio
+                titulo="No se encontraron pacientes"
+                descripcion="No hay pacientes que coincidan con los filtros seleccionados."
+                accion={{
+                  label: "Limpiar filtros",
+                  onClick: limpiarFiltros,
+                }}
+              />
+            )
+          ) : (
+            <>
+              <p className="mb-4 text-sm text-slate-500">
+                Mostrando {pacientesFiltrados.length} de{" "}
+                {totalPacientes ?? pacientes.length} pacientes
+              </p>
 
-          <PatientTable
-            pacientes={pacientesFiltrados}
-            onVerPaciente={verPaciente}
-            onEditarPaciente={editarPaciente}
-            onEliminarPaciente={eliminarPaciente}
-            onRestablecerFiltros={limpiarFiltros}
-          />
+              <PatientTable
+                pacientes={pacientesFiltrados}
+                onVerPaciente={verPaciente}
+                onEditarPaciente={editarPaciente}
+                onEliminarPaciente={solicitarEliminarPaciente}
+                onRestablecerFiltros={limpiarFiltros}
+              />
+            </>
+          )}
         </>
       )}
       {/* Métricas */}
@@ -321,6 +357,23 @@ export function PacientesPage() {
           onGuardar={guardarPaciente}
         />
       )}
+      <ModalConfirmacion
+        abierto={pacienteAEliminar !== null}
+        titulo="Eliminar paciente"
+        mensaje={
+          pacienteAEliminar
+            ? `¿Estás seguro de que deseas eliminar a ${pacienteAEliminar.nombre} ${pacienteAEliminar.apellido}? Esta acción no se puede deshacer.`
+            : ""
+        }
+        textoConfirmar="Eliminar paciente"
+        cargando={eliminando}
+        onConfirmar={confirmarEliminarPaciente}
+        onCancelar={() => {
+          if (!eliminando) {
+            setPacienteAEliminar(null);
+          }
+        }}
+      />
     </section>
   );
 }

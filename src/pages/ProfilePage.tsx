@@ -4,16 +4,16 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, Save, UserRound } from "lucide-react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
-
 import InputFotoPerfil from "../components/profile/InputFotoPerfil";
 import { perfilSchema, type PerfilFormData } from "../schemas/perfil.schema";
 import { useAuthStore } from "../stores/useAuthStore";
+import AlertaBanner from "../components/ui/AlertaBanner";
 
 export default function ProfilePage() {
   const usuario = useAuthStore((state) => state.usuario);
   const actualizarUsuario = useAuthStore((state) => state.actualizarUsuario);
-
   const [fotoSeleccionada, setFotoSeleccionada] = useState<File | null>(null);
+  const [errorPerfil, setErrorPerfil] = useState("");
 
   const {
     register,
@@ -23,23 +23,26 @@ export default function ProfilePage() {
   } = useForm<PerfilFormData>({
     resolver: zodResolver(perfilSchema),
     defaultValues: {
-      nombre: usuario.nombre,
-      email: usuario.email,
-      telefono: usuario.telefono,
+      nombre: usuario.nombre ?? "",
+      email: usuario.email ?? "",
+      telefono: usuario.telefono ?? "",
     },
   });
 
-  // Si cambia el usuario del store, sincronizamos el formulario.
+  // Sincronizar el formulario cuando cambie el usuario autenticado.
   useEffect(() => {
     reset({
-      nombre: usuario.nombre,
-      email: usuario.email,
-      telefono: usuario.telefono,
+      nombre: usuario.nombre ?? "",
+      email: usuario.email ?? "",
+      telefono: usuario.telefono ?? "",
     });
   }, [usuario, reset]);
 
+  // Guardar cambios del perfil.
   const guardarPerfil = async (datos: PerfilFormData) => {
     try {
+      setErrorPerfil("");
+
       // Por ahora simulamos el guardado en el frontend.
       const foto = fotoSeleccionada
         ? URL.createObjectURL(fotoSeleccionada)
@@ -55,9 +58,27 @@ export default function ProfilePage() {
       setFotoSeleccionada(null);
 
       toast.success("Perfil actualizado correctamente.");
-    } catch {
+    } catch (error) {
+      console.error("Error al actualizar el perfil:", error);
+
+      setErrorPerfil(
+        "No fue posible actualizar tu perfil. Intenta nuevamente.",
+      );
+
       toast.error("No fue posible actualizar el perfil.");
     }
+  };
+
+  // Descartar cambios y recuperar los datos actuales del usuario.
+  const descartarCambios = () => {
+    reset({
+      nombre: usuario.nombre ?? "",
+      email: usuario.email ?? "",
+      telefono: usuario.telefono ?? "",
+    });
+
+    setFotoSeleccionada(null);
+    setErrorPerfil("");
   };
 
   return (
@@ -82,12 +103,23 @@ export default function ProfilePage() {
           </p>
         </div>
 
+        {/* Error al guardar */}
+        {errorPerfil && (
+          <div className="mb-5">
+            <AlertaBanner
+              tipo="error"
+              titulo="Error al guardar el perfil"
+              mensaje={errorPerfil}
+            />
+          </div>
+        )}
+
         {/* Tarjeta del perfil */}
         <form
           onSubmit={handleSubmit(guardarPerfil)}
           className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
         >
-          {/* Foto */}
+          {/* Foto y datos principales */}
           <div className="border-b border-slate-200 bg-slate-50 px-6 py-8 sm:px-10">
             <div className="flex flex-col items-center">
               <InputFotoPerfil
@@ -96,7 +128,7 @@ export default function ProfilePage() {
               />
 
               <h2 className="mt-4 text-xl font-semibold text-slate-900">
-                {usuario.nombre}
+                {usuario.nombre || "Usuario"}
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">{usuario.email}</p>
@@ -199,16 +231,9 @@ export default function ProfilePage() {
             <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={() => {
-                  reset({
-                    nombre: usuario.nombre,
-                    email: usuario.email,
-                    telefono: usuario.telefono,
-                  });
-
-                  setFotoSeleccionada(null);
-                }}
-                className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                onClick={descartarCambios}
+                disabled={isSubmitting}
+                className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Descartar cambios
               </button>

@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { FormularioCita } from "../components/citas/FormularioCita";
+import ErrorBoundary from "../components/ui/ErrorBoundary";
+import AlertaBanner from "../components/ui/AlertaBanner";
 
 export function NuevaCitaPage() {
   return (
@@ -20,7 +22,17 @@ export function NuevaCitaPage() {
         </p>
       </div>
 
-      <FormularioCita />
+      <ErrorBoundary
+        fallback={
+          <AlertaBanner
+            tipo="error"
+            titulo="Error al mostrar el formulario"
+            mensaje="No fue posible cargar el formulario de citas. Intenta nuevamente."
+          />
+        }
+      >
+        <FormularioCita />
+      </ErrorBoundary>
     </section>
   );
 }
